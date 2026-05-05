@@ -72,18 +72,34 @@ pub fn check_destructive(cmd: &str, config: &GuardConfig) -> Option<RuleHit> {
         ));
     }
 
-    // rm -rf
-    if cmd.contains("rm -rf") || cmd.contains("rm -fr") {
-        let is_safe = config
-            .safe_rm_patterns
-            .iter()
-            .any(|p| cmd.contains(p.as_str()));
-        if !is_safe {
-            return Some((RuleId::RmRf, "rm -rf (recursive force delete)".into()));
+    // rm / unlink / rmdir — token-level operand classifier.
+    // See `crates/secguard-guard/src/rm.rs` for the full path-classification
+    // table; this is the entry point that fires before SQL/saas/etc. rules.
+    //
+    // Three-state outcome:
+    //   * Destructive — return immediately, the precise classifier wins.
+    //   * Safe        — operands provably safe, do NOT fall back to substring
+    //                   matching (would re-introduce the FN we just closed).
+    //   * NotFound    — no rm at command position; could be a wrapped rm
+    //                   (`bash -c '…'`, `sudo rm`, `xargs rm`, etc.). Apply
+    //                   a conservative substring fallback here so wrapper
+    //                   coverage doesn't regress until proposal 001 lands.
+    match crate::rm::check_rm(cmd, config) {
+        crate::rm::RmCheck::Destructive(hit) => return Some(hit),
+        crate::rm::RmCheck::Safe => { /* fall through to other rules */ }
+        crate::rm::RmCheck::NotFound => {
+            if cmd.contains("rm -rf") || cmd.contains("rm -fr") {
+                return Some((
+                    RuleId::RmRf,
+                    "rm -rf inside wrapper (sudo/bash -c/eval/xargs/...) — \
+                     precise unwrap pending RAN-355"
+                        .into(),
+                ));
+            }
+            if cmd.contains("rm -r ") {
+                return Some((RuleId::RmRecursive, "rm -r (recursive delete)".into()));
+            }
         }
-    }
-    if cmd.contains("rm -r ") && !cmd.contains("rm -rf") && !cmd.contains("rm -fr") {
-        return Some((RuleId::RmRecursive, "rm -r (recursive delete)".into()));
     }
 
     // SQL destructive

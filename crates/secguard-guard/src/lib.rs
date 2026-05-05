@@ -5,6 +5,7 @@
 pub mod config;
 pub mod heuristic;
 pub mod policy;
+pub mod rm;
 pub mod rule_id;
 
 #[cfg(feature = "ml")]
