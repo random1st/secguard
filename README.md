@@ -185,10 +185,34 @@ Endpoints:
 Every hook invocation writes a JSONL line to `~/.secguard/telemetry.jsonl`. Guard command text is redacted with the secrets scanner and truncated before it is written:
 
 ```json
-{"ts":"2026-04-19T07:00:00Z","mode":"guard","tool_name":"Bash","command":"rm -rf /","verdict":"destructive","verdict_source":"heuristic","reason":"rm -rf (recursive force delete)","latency_us":42,"target":"claude"}
+{"ts":"2026-04-19T07:00:00Z","mode":"guard","tool_name":"Bash","command":"rm -rf /","verdict":"destructive","verdict_source":"heuristic","reason":"rm -rf (recursive force delete)","rule_id":"rm.rf","latency_us":42,"target":"claude"}
 ```
 
+Each event includes a machine-readable `rule_id` (e.g. `git.force_push`, `rm.rf`, `infra.aws_s3_rm`) so you can group false positives/negatives without parsing the human-readable `reason`.
+
 Disable with `SECGUARD_TELEMETRY=off`. Useful for false-positive analysis and training data collection.
+
+## Shadow mode
+
+Set `SECGUARD_SHADOW=1` to put the Bash guard into observe-only mode. The guard still classifies every command and logs what it *would* have decided, but it never blocks — every command is allowed through.
+
+```bash
+export SECGUARD_SHADOW=1
+# Now every Claude/Gemini/Codex Bash invocation is permitted; telemetry
+# records the would-be decision so you can audit before promoting.
+```
+
+Telemetry events emitted while shadow mode is on carry two extra fields:
+
+```json
+{"...":"...","would_decide":"ask","shadow":true}
+```
+
+Use this to roll out new rules safely: enable shadow, run a workload, inspect `~/.secguard/telemetry.jsonl` for `"would_decide":"ask"` entries, then unset `SECGUARD_SHADOW` to enforce.
+
+Recognised off values: `0`, `off`, `false`, empty, unset. Anything else (`1`, `true`, `yes`, etc.) turns shadow on.
+
+**Scope.** Shadow mode is honoured by the `secguard` CLI's hook handler (Claude Code, Gemini CLI, Codex CLI integrations). The `secguard-server` HTTP variant ignores it: server deployments are typically central choke points where opaque fail-open is undesirable. If you need observe-only behavior in the server, scope it per-deployment via reverse proxy or a dedicated route.
 
 ## Standalone usage
 

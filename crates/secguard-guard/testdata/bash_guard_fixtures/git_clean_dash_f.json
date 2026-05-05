@@ -1,0 +1,16 @@
+{
+  "name": "git_clean_dash_f",
+  "description": "git clean -f removes untracked files",
+  "input": {
+    "tool_name": "Bash",
+    "tool_input": {
+      "command": "git clean -f"
+    },
+    "cwd": "/Users/test/myproject"
+  },
+  "expect": {
+    "decision": "ask",
+    "rule": "git",
+    "reason_code": "git.clean_force"
+  }
+}

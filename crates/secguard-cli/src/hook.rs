@@ -119,6 +119,13 @@ fn run_guard(v: &serde_json::Value, target: HookTarget) -> anyhow::Result<()> {
         secguard_guard::Verdict::Destructive(r) => ("destructive", Some(r.clone())),
     };
 
+    let shadow = is_shadow_mode();
+    let would_decide = if shadow {
+        Some(would_decide_label(target, &detail.verdict))
+    } else {
+        None
+    };
+
     telemetry::emit_guard(&telemetry::GuardEvent {
         ts: telemetry::now_iso(),
         mode: "guard",
@@ -130,10 +137,28 @@ fn run_guard(v: &serde_json::Value, target: HookTarget) -> anyhow::Result<()> {
             .trim_matches('"')
             .to_string(),
         reason: reason.clone(),
+        rule_id: detail.rule_id.map(|id| id.as_code()),
         confidence: detail.confidence,
         latency_us,
         target: target.to_string(),
+        would_decide,
+        shadow,
     });
+
+    if shadow {
+        if let secguard_guard::Verdict::Destructive(reason) = &detail.verdict {
+            eprintln!(
+                "[secguard][shadow] would {} — {} (logged only)",
+                would_decide.unwrap_or("ask"),
+                reason
+            );
+        }
+        if matches!(target, HookTarget::Codex) {
+            let json = allow_response(target, incoming_hook_event_name(v), None, None);
+            println!("{}", serde_json::to_string(&json)?);
+        }
+        return Ok(());
+    }
 
     if let secguard_guard::Verdict::Destructive(reason) = detail.verdict {
         let display = truncate_chars(&redact_command(&text_to_check), 200);
@@ -152,6 +177,36 @@ fn run_guard(v: &serde_json::Value, target: HookTarget) -> anyhow::Result<()> {
     Ok(())
 }
 
+/// Returns true when `SECGUARD_SHADOW` is set to anything truthy
+/// (i.e., not absent and not one of `0`, `off`, `false`, empty).
+fn is_shadow_mode() -> bool {
+    is_shadow_value(std::env::var("SECGUARD_SHADOW").ok().as_deref())
+}
+
+/// Pure shadow-mode predicate over an optional value, factored out so it can
+/// be unit-tested without mutating process-level environment state. The end-
+/// to-end env-var path is exercised by `tests/cli.rs` against the actual
+/// binary, where each `assert_cmd::Command` runs in its own process.
+fn is_shadow_value(raw: Option<&str>) -> bool {
+    let Some(v) = raw else {
+        return false;
+    };
+    let v = v.trim().to_ascii_lowercase();
+    !(v.is_empty() || v == "0" || v == "off" || v == "false")
+}
+
+/// Maps a Verdict into the permissionDecision string the runtime *would* have
+/// emitted in non-shadow mode. Used only for telemetry's `would_decide` field.
+fn would_decide_label(target: HookTarget, verdict: &secguard_guard::Verdict) -> &'static str {
+    match verdict {
+        secguard_guard::Verdict::Safe => "allow",
+        secguard_guard::Verdict::Destructive(_) => match target {
+            HookTarget::Codex => "deny",
+            _ => "ask",
+        },
+    }
+}
+
 fn redact_command(command: &str) -> String {
     let scanner = secguard_secrets::Scanner::new();
     let findings = scanner.scan(command);
@@ -165,27 +220,6 @@ fn truncate_chars(text: &str, max_chars: usize) -> String {
         truncated.push_str("...");
     }
     truncated
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn truncate_chars_handles_utf8_boundaries() {
-        let text = "ж".repeat(201);
-        let truncated = truncate_chars(&text, 200);
-        assert!(truncated.ends_with("..."));
-        assert_eq!(truncated.trim_end_matches("...").chars().count(), 200);
-    }
-
-    #[test]
-    fn redact_command_removes_detected_secrets() {
-        let key = format!("AKIA{}", "IOSFODNN7EXAMPLE");
-        let redacted = redact_command(&format!("echo {key}"));
-        assert!(redacted.contains("[REDACTED:aws_access_key]"));
-        assert!(!redacted.contains(&key));
-    }
 }
 
 fn allow_response(
@@ -286,4 +320,60 @@ fn extract_command(value: &serde_json::Value) -> Option<String> {
         .and_then(|value| value.get("command").or_else(|| value.get("cmd")))
         .and_then(|value| value.as_str())
         .map(str::to_string)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn truncate_chars_handles_utf8_boundaries() {
+        let text = "ж".repeat(201);
+        let truncated = truncate_chars(&text, 200);
+        assert!(truncated.ends_with("..."));
+        assert_eq!(truncated.trim_end_matches("...").chars().count(), 200);
+    }
+
+    #[test]
+    fn redact_command_removes_detected_secrets() {
+        let key = format!("AKIA{}", "IOSFODNN7EXAMPLE");
+        let redacted = redact_command(&format!("echo {key}"));
+        assert!(redacted.contains("[REDACTED:aws_access_key]"));
+        assert!(!redacted.contains(&key));
+    }
+
+    #[test]
+    fn is_shadow_value_recognises_truthy() {
+        for v in ["1", "true", "TRUE", "yes", "on", " 1 ", "True"] {
+            assert!(is_shadow_value(Some(v)), "expected shadow on for `{v}`");
+        }
+    }
+
+    #[test]
+    fn is_shadow_value_recognises_falsy_or_absent() {
+        assert!(!is_shadow_value(None), "absent must be off");
+        for v in ["0", "off", "false", "OFF", "", "  ", " false "] {
+            assert!(!is_shadow_value(Some(v)), "expected shadow off for `{v}`");
+        }
+    }
+
+    #[test]
+    fn would_decide_label_codex_destructive_is_deny() {
+        let v = secguard_guard::Verdict::Destructive("x".into());
+        assert_eq!(would_decide_label(HookTarget::Codex, &v), "deny");
+    }
+
+    #[test]
+    fn would_decide_label_claude_destructive_is_ask() {
+        let v = secguard_guard::Verdict::Destructive("x".into());
+        assert_eq!(would_decide_label(HookTarget::Claude, &v), "ask");
+    }
+
+    #[test]
+    fn would_decide_label_safe_is_always_allow() {
+        let v = secguard_guard::Verdict::Safe;
+        assert_eq!(would_decide_label(HookTarget::Codex, &v), "allow");
+        assert_eq!(would_decide_label(HookTarget::Claude, &v), "allow");
+        assert_eq!(would_decide_label(HookTarget::Gemini, &v), "allow");
+    }
 }

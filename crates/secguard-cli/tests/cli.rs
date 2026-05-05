@@ -217,6 +217,64 @@ fn hook_guard_destructive_bash() {
 }
 
 #[test]
+fn hook_guard_shadow_mode_does_not_block() {
+    // SECGUARD_SHADOW=1 must always allow the command (no permissionDecision
+    // emitted on stdout) but still log the would-decide reason on stderr so
+    // operators can audit what the guard *would* have done.
+    let input = serde_json::json!({
+        "tool_name": "Bash",
+        "tool_input": { "command": "rm -rf /" }
+    });
+    secguard()
+        .args(["hook", "guard"])
+        .env("SECGUARD_SHADOW", "1")
+        .env("SECGUARD_TELEMETRY", "off")
+        .write_stdin(serde_json::to_string(&input).unwrap())
+        .assert()
+        .success()
+        .stdout(predicate::str::is_empty())
+        .stderr(predicate::str::contains("[secguard][shadow]"))
+        .stderr(predicate::str::contains("would ask"));
+}
+
+#[test]
+fn hook_guard_shadow_mode_safe_command_silent() {
+    // For safe commands shadow mode must remain silent — no [secguard][shadow]
+    // line on stderr (that prefix is reserved for would-block events).
+    let input = serde_json::json!({
+        "tool_name": "Bash",
+        "tool_input": { "command": "ls -la" }
+    });
+    secguard()
+        .args(["hook", "guard"])
+        .env("SECGUARD_SHADOW", "1")
+        .env("SECGUARD_TELEMETRY", "off")
+        .write_stdin(serde_json::to_string(&input).unwrap())
+        .assert()
+        .success()
+        .stdout(predicate::str::is_empty())
+        .stderr(predicate::str::contains("[secguard][shadow]").not());
+}
+
+#[test]
+fn hook_guard_shadow_mode_off_value_disables() {
+    // SECGUARD_SHADOW=off must NOT enable shadow mode; behaviour stays normal.
+    let input = serde_json::json!({
+        "tool_name": "Bash",
+        "tool_input": { "command": "rm -rf /" }
+    });
+    secguard()
+        .args(["hook", "guard"])
+        .env("SECGUARD_SHADOW", "off")
+        .env("SECGUARD_TELEMETRY", "off")
+        .write_stdin(serde_json::to_string(&input).unwrap())
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("permissionDecision"))
+        .stdout(predicate::str::contains("ask"));
+}
+
+#[test]
 fn hook_guard_long_unicode_command_does_not_panic() {
     let command = format!("git reset --hard {}", "ж".repeat(300));
     let input = serde_json::json!({

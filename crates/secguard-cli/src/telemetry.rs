@@ -16,9 +16,20 @@ pub struct GuardEvent {
     pub verdict: &'static str,
     pub verdict_source: String,
     pub reason: Option<String>,
+    /// Machine-readable rule code, e.g. `git.force_push`. None when no rule matched.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub rule_id: Option<&'static str>,
     pub confidence: Option<f32>,
     pub latency_us: u128,
     pub target: String,
+    /// In shadow mode, this records what the guard *would* have decided
+    /// (`"ask"`, `"deny"`, or `"allow"`) while the actual response is always
+    /// `allow`. Absent when shadow mode is not active.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub would_decide: Option<&'static str>,
+    /// `true` iff the event was emitted in shadow mode (always-allow override).
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub shadow: bool,
 }
 
 #[derive(Debug, Serialize)]
@@ -71,28 +82,6 @@ fn civil_from_days(z: i64) -> (i32, u32, u32) {
     (y, m, d)
 }
 
-#[cfg(test)]
-mod tests {
-    use super::civil_from_days;
-
-    #[test]
-    fn epoch_is_1970_01_01() {
-        assert_eq!(civil_from_days(0), (1970, 1, 1));
-    }
-
-    #[test]
-    fn leap_day_2024() {
-        // 2024-02-29 = day 19782 since epoch
-        assert_eq!(civil_from_days(19782), (2024, 2, 29));
-    }
-
-    #[test]
-    fn known_date_2026_04_23() {
-        // 2026-04-23 = day 20566 since epoch
-        assert_eq!(civil_from_days(20566), (2026, 4, 23));
-    }
-}
-
 pub fn emit_guard(event: &GuardEvent) {
     if !is_enabled() {
         return;
@@ -128,5 +117,27 @@ fn emit_json<T: Serialize>(event: &T) {
         Err(e) => {
             log::debug!("[telemetry] write error: {e}");
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::civil_from_days;
+
+    #[test]
+    fn epoch_is_1970_01_01() {
+        assert_eq!(civil_from_days(0), (1970, 1, 1));
+    }
+
+    #[test]
+    fn leap_day_2024() {
+        // 2024-02-29 = day 19782 since epoch
+        assert_eq!(civil_from_days(19782), (2024, 2, 29));
+    }
+
+    #[test]
+    fn known_date_2026_04_23() {
+        // 2026-04-23 = day 20566 since epoch
+        assert_eq!(civil_from_days(20566), (2026, 4, 23));
     }
 }

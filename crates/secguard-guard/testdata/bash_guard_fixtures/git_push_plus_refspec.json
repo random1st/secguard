@@ -1,0 +1,16 @@
+{
+  "name": "git_push_plus_refspec",
+  "description": "git push origin +HEAD — `+refspec` is force-push for that ref",
+  "input": {
+    "tool_name": "Bash",
+    "tool_input": {
+      "command": "git push origin +HEAD"
+    },
+    "cwd": "/Users/test/myproject"
+  },
+  "expect": {
+    "decision": "ask",
+    "rule": "git",
+    "reason_code": "git.force_push"
+  }
+}

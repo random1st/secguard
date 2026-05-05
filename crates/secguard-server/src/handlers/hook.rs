@@ -41,6 +41,10 @@ pub async fn guard(
     state.metrics.guard_duration.observe(elapsed);
 
     let source = serde_json::to_string(&detail.source).unwrap_or_default();
+    let rule_id_str = detail
+        .rule_id
+        .map(|id| format!("\"{}\"", id.as_code()))
+        .unwrap_or_else(|| "null".into());
 
     match &detail.verdict {
         secguard_guard::Verdict::Destructive(reason) => {
@@ -55,8 +59,9 @@ pub async fn guard(
             let display = redact_and_truncate(&text, &state.scanner, 200);
 
             log::info!(
-                "{{\"mode\":\"guard\",\"verdict\":\"destructive\",\"source\":{},\"command\":{},\"reason\":{},\"latency_ms\":{:.3}}}",
+                "{{\"mode\":\"guard\",\"verdict\":\"destructive\",\"source\":{},\"rule_id\":{},\"command\":{},\"reason\":{},\"latency_ms\":{:.3}}}",
                 source,
+                rule_id_str,
                 serde_json::to_string(&display).unwrap_or_default(),
                 serde_json::to_string(reason).unwrap_or_default(),
                 elapsed * 1000.0,
