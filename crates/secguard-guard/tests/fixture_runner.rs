@@ -206,12 +206,19 @@ fn fixture_baseline_matches_known_invariants() {
     //   2026-05-06  rule-family expansion batch 5 (helm/kubectl/
     //               docker push/gsutil/netlify/git checkout/
     //               graphql + bash -c re-parse + non-Bash skip)  149 / 155
-    // The remaining 6 mismatches all require AST/cwd/wrapper-unwrap
-    // (RAN-355) or pipe-to-shell literal re-parse: cwd_is_home_rm_dot,
-    // gcloud_compute_ssh_destructive, pipe_into_bash, rm_glob_in_cwd,
-    // rm_rf_tmp_subdir, subshell_rm_safe.
-    // Floor sits 3 below the latest measurement to absorb noise.
-    const BASELINE_MATCHED_FLOOR: usize = 146;
+    //   2026-05-06  RAN-355 target architecture (tree-sitter-bash
+    //               AST + span classifier + wrapper unwrap +
+    //               cwd-tracking + pipe-to-shell + asymmetric
+    //               fail-open + predicate rules)                153 / 155
+    // The remaining 2 mismatches both need runtime data we don't have:
+    //   - cwd_is_home_rm_dot: needs the fixture cwd plumbed into
+    //     check_detailed (currently the runtime gets cwd from the
+    //     hook input — fixture runner doesn't pass it).
+    //   - gcloud_compute_ssh_destructive: needs semantic analysis of
+    //     the `--command='sudo systemctl ...'` payload to know the
+    //     remote command is destructive.
+    // Floor sits 2 below the latest measurement to absorb noise.
+    const BASELINE_MATCHED_FLOOR: usize = 151;
     assert!(
         matched >= BASELINE_MATCHED_FLOOR,
         "match rate regressed: matched={matched} < floor={BASELINE_MATCHED_FLOOR}. \

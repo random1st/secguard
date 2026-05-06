@@ -102,6 +102,7 @@ fn is_safe_git_push(cmd: &str) -> bool {
     true
 }
 
+#[allow(dead_code)]
 pub(crate) fn is_kill_command(cmd: &str) -> bool {
     cmd.split_whitespace()
         .next()

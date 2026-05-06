@@ -15,7 +15,10 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 log = { workspace = true }
 shell-words = "1"
+tree-sitter = "0.26"
+tree-sitter-bash = "0.25"
 secguard-brain = { path = "../secguard-brain", optional = true }
 
 [dev-dependencies]
 dirs = { workspace = true }
+

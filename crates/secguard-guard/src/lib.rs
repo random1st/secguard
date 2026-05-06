@@ -2,11 +2,13 @@
 //!
 //! Three-phase classification: policy allowlist -> heuristic rules -> ML brain.
 
+pub mod ast;
 pub mod config;
 pub mod heuristic;
 pub mod policy;
 pub mod rm;
 pub mod rule_id;
+pub mod rules;
 
 #[cfg(feature = "ml")]
 mod brain;
@@ -67,6 +69,16 @@ pub fn check_with_config(cmd: &str, config: &GuardConfig) -> Verdict {
 }
 
 /// Classify with full detail (verdict + source + confidence + rule_id).
+///
+/// Pipeline:
+///   1. Policy allowlist — known-safe operations short-circuit early.
+///   2. AST parse → flat list of effective commands (wrappers unwrapped,
+///      cwd tracked, span classified).
+///   3. Predicate rules in [`crate::rules`] applied to each command.
+///   4. Asymmetric fail-open on parse error: if the source contains a
+///      destructive trigger keyword, return Destructive with reason
+///      `parse_error_after_trigger`; otherwise allow.
+///   5. ML brain (if enabled) on commands not flagged by rules.
 pub fn check_detailed(cmd: &str, config: &GuardConfig) -> VerdictDetail {
     if policy::is_safe_by_policy(cmd, config) {
         return VerdictDetail {
@@ -77,12 +89,40 @@ pub fn check_detailed(cmd: &str, config: &GuardConfig) -> VerdictDetail {
         };
     }
 
-    if let Some((rule_id, reason)) = heuristic::check_destructive(cmd, config) {
+    let (commands, had_parse_issue) = match ast::parse(cmd) {
+        ast::ParseOutcome::Ok(c) => (c, false),
+        ast::ParseOutcome::Partial { commands, .. } => (commands, true),
+        ast::ParseOutcome::Failed => (Vec::new(), true),
+    };
+
+    for ec in &commands {
+        if ec.span != ast::SpanKind::Executed {
+            continue;
+        }
+        if let Some((rule_id, reason)) = rules::classify(ec, config) {
+            return VerdictDetail {
+                verdict: Verdict::Destructive(reason),
+                source: VerdictSource::Heuristic,
+                confidence: None,
+                rule_id: Some(rule_id),
+            };
+        }
+    }
+
+    // Asymmetric fail-open: a malformed command that mentions a
+    // destructive trigger keyword surfaces as an ask, not a silent
+    // allow. Without trigger words, malformed input is the agent's
+    // problem (the shell will refuse it anyway).
+    if had_parse_issue && has_trigger_keyword(cmd) {
         return VerdictDetail {
-            verdict: Verdict::Destructive(reason),
+            verdict: Verdict::Destructive(
+                "parse error in input that mentions a destructive keyword \
+                 (asymmetric fail-open)"
+                    .into(),
+            ),
             source: VerdictSource::Heuristic,
             confidence: None,
-            rule_id: Some(rule_id),
+            rule_id: None,
         };
     }
 
@@ -129,4 +169,38 @@ pub fn check_detailed(cmd: &str, config: &GuardConfig) -> VerdictDetail {
         confidence: None,
         rule_id: None,
     }
+}
+
+/// Quick substring scan for destructive trigger keywords. Used by the
+/// asymmetric-fail-open path: a malformed command that mentions any of
+/// these words is escalated to ask, while malformed-but-benign input is
+/// left to the shell's own syntax check.
+fn has_trigger_keyword(cmd: &str) -> bool {
+    const TRIGGERS: &[&str] = &[
+        "rm",
+        "unlink",
+        "rmdir",
+        "shred",
+        "drop",
+        "truncate",
+        "delete",
+        "destroy",
+        "purge",
+        "terminate",
+        "force",
+        "reset",
+        "rebase",
+        "amend",
+        "uninstall",
+        "filter-branch",
+        "filter-repo",
+        "FLUSHALL",
+        "FLUSHDB",
+        "SHUTDOWN",
+        "dropDatabase",
+        "deleteMany",
+        "eval",
+        "sudo",
+    ];
+    TRIGGERS.iter().any(|t| cmd.contains(t))
 }

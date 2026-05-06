@@ -1,10 +1,19 @@
 # Proposal 001: AST parsing + wrapper unwrap (structural FN/FP fix)
 
-**Status:** Deferred — see [decision.next-on-bash-guard-parity__20260505](../../.s5d/packages/decision.next-on-bash-guard-parity__20260505.s5d.yaml). Parser-choice S5D blocked behind a working spike; RAN-355 will not land until rule-family expansion completes.
-**Authors:** @random1st (with tribunal input from Codex + Gemini, 2026-05-04)
-**Blocks:** RAN-353 (fixtures + shadow mode), RAN-354 (rm operand parsing)
-**Linear ticket:** RAN-355 (queued behind rule-family expansion)
-**Decision rationale:** Coverage math (40 missing rule fixtures vs 12 wrapper fixtures) plus parser-availability risk in the Rust ecosystem (no maintained bash-extension-aware library) make AST a worse next chunk than rule-family expansion. Wrapper FN stays conservatively covered by the substring fallback in `heuristic.rs` (asks on any `rm -rf` substring, no FN). Revisit when rule-family work hits an operand-parsing wall or when the fixture baseline plateaus.
+**Status:** **Implemented** in commit landing 2026-05-06. Parser choice: tree-sitter-bash (the only maintained Rust-accessible option; conch-parser abandoned, custom = greenfield CVE risk per tribunal-1).
+**Authors:** @random1st
+**Result:**
+- `crates/secguard-guard/src/ast.rs` — tree-sitter-bash parser, span classifier, wrapper unwrap (sudo/doas/env/command/builtin/exec/bash-c/sh-c/zsh-c/eval/timeout/nohup/time/nice/ionice/setsid/flock/ssh/chroot/xargs/parallel/watch/find -delete/find -exec/busybox), cwd-tracking, pipeline pipe-to-shell shape detection with literal upstream re-parse.
+- `crates/secguard-guard/src/rules.rs` — 35 predicate rules over `EffectiveCommand`. No more shell-words boilerplate per rule.
+- `crates/secguard-guard/src/heuristic.rs` — shrunk from 2263 → 825 LOC; thin wrapper around the new pipeline, kept full integration test suite.
+- `crates/secguard-guard/src/rm.rs` — shrunk from 818 → 220 LOC; thin wrapper too.
+- `crates/secguard-guard/src/lib.rs::check_detailed` — pipeline now: policy → ast::parse → rules::classify → asymmetric fail-open → ML brain.
+- Fixture baseline: 149/155 → **153/155 (98.7%)**, default-rule FP=0 (was 5).
+- Tests: 198 unit (was 162) + 1 fixture_runner + 45 cli e2e + 21 secrets.
+
+The 2 remaining mismatches both need runtime data we don't get: cwd from hook input (`cwd_is_home_rm_dot`) and semantic SSH remote-cmd analysis (`gcloud_compute_ssh_destructive`).
+
+Tribunal-355 caught 5 verified bypasses on the first pass (REJECT CRITICAL): command substitution skipped, wrapper flag-with-value not consumed, relative cd left stale state, eval dynamic missed, doctest broken. All addressed in the same commit with regression tests.
 
 ## Problem
 
