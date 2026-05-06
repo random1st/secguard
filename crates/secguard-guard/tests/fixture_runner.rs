@@ -191,10 +191,12 @@ fn fixture_baseline_matches_known_invariants() {
 
     // Forbid silent regression of total match rate below the recorded
     // baseline. Update this number in the same commit that intentionally
-    // lowers it. Initial baseline measured 2026-05-05 on 155 fixtures = 97.
-    // Set the floor 2 below baseline to absorb cwd/non-determinism noise
-    // without permitting silent rule-coverage regressions.
-    const BASELINE_MATCHED_FLOOR: usize = 95;
+    // lowers it. Baseline history (155 fixtures total):
+    //   2026-05-05  RAN-353 + RAN-354                            97-98 / 155
+    //   2026-05-06  rule-family expansion (terraform/redis/...)  138 / 155
+    // Floor sits 3 below the latest measurement to absorb noise without
+    // permitting silent rule-coverage regressions.
+    const BASELINE_MATCHED_FLOOR: usize = 135;
     assert!(
         matched >= BASELINE_MATCHED_FLOOR,
         "match rate regressed: matched={matched} < floor={BASELINE_MATCHED_FLOOR}. \

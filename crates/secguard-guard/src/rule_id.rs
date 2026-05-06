@@ -32,6 +32,12 @@ pub enum RuleId {
     AwsS3Rm,
     GhDestructive,
     SaasDestroy,
+    TerraformMutation,
+    RedisDestructive,
+    OpensearchMutation,
+    MongoDestructive,
+    OrmMigration,
+    SupabaseDbMutation,
     Brain,
 }
 
@@ -60,6 +66,12 @@ impl RuleId {
             RuleId::AwsS3Rm => "infra.aws_s3_rm",
             RuleId::GhDestructive => "infra.gh_destructive",
             RuleId::SaasDestroy => "paas.destroy",
+            RuleId::TerraformMutation => "infra.terraform_mutation",
+            RuleId::RedisDestructive => "db_client.redis_destructive",
+            RuleId::OpensearchMutation => "infra.opensearch_mutation",
+            RuleId::MongoDestructive => "infra.mongo_destructive",
+            RuleId::OrmMigration => "supabase.orm_migration",
+            RuleId::SupabaseDbMutation => "supabase.db_mutation",
             RuleId::Brain => "brain.classification",
         }
     }
