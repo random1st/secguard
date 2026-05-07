@@ -6,8 +6,8 @@ type: application
 # both via `helm install --version X.Y.Z`. The release.yml workflow
 # packages this chart into the OCI Helm registry on GHCR alongside
 # the secguard Docker image.
-version: 0.4.1
-appVersion: "0.4.1"
+version: 0.4.2
+appVersion: "0.4.2"
 home: https://github.com/diana-random1st/secguard
 sources:
   - https://github.com/diana-random1st/secguard

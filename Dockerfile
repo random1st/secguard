@@ -7,8 +7,17 @@ RUN cargo build --release -p secguard-server --features ml && \
     strip target/release/secguard-server
 
 FROM debian:bookworm-slim
-RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates && \
-    rm -rf /var/lib/apt/lists/* && \
+# libgomp1: OpenMP runtime — llama.cpp (via llama-cpp-2) links against it
+# dynamically. Without it the secguard-server binary built with
+# `--features ml` fails on launch with
+# `error while loading shared libraries: libgomp.so.1`. v0.4.1 hit
+# exactly this — workflow built and pushed cleanly, but the image
+# wouldn't start. ca-certificates stays for outbound TLS (HF model
+# downloads, telemetry, etc).
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        ca-certificates \
+        libgomp1 \
+    && rm -rf /var/lib/apt/lists/* && \
     useradd -r -s /usr/sbin/nologin -d /var/lib/secguard secguard && \
     mkdir -p /var/lib/secguard/.secguard/models && \
     chown -R secguard:secguard /var/lib/secguard

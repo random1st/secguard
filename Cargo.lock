@@ -1041,7 +1041,7 @@ checksum = "94143f37725109f92c262ed2cf5e59bce7498c01bcc1502d7b9afe439a4e9f49"
 
 [[package]]
 name = "secguard-brain"
-version = "0.4.1"
+version = "0.4.2"
 dependencies = [
  "dirs",
  "llama-cpp-2",
@@ -1050,7 +1050,7 @@ dependencies = [
 
 [[package]]
 name = "secguard-cli"
-version = "0.4.1"
+version = "0.4.2"
 dependencies = [
  "anyhow",
  "assert_cmd",
@@ -1070,7 +1070,7 @@ dependencies = [
 
 [[package]]
 name = "secguard-guard"
-version = "0.4.1"
+version = "0.4.2"
 dependencies = [
  "dirs",
  "log",
@@ -1084,7 +1084,7 @@ dependencies = [
 
 [[package]]
 name = "secguard-secrets"
-version = "0.4.1"
+version = "0.4.2"
 dependencies = [
  "log",
  "pretty_assertions",
@@ -1096,7 +1096,7 @@ dependencies = [
 
 [[package]]
 name = "secguard-server"
-version = "0.4.1"
+version = "0.4.2"
 dependencies = [
  "anyhow",
  "axum",
