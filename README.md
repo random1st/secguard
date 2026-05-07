@@ -153,7 +153,7 @@ The hook path also runs a throttled (once per 7 days) detached check in the back
 ```bash
 # Local Docker (multi-arch image — linux/amd64, linux/arm64)
 docker run -p 8080:8080 -e SECGUARD_TOKEN=your-token \
-  ghcr.io/diana-random1st/secguard-server:latest
+  ghcr.io/diana-random1st/secguard:latest
 
 # Kubernetes (Helm OCI registry)
 helm install secguard \

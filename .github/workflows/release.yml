@@ -105,7 +105,14 @@ jobs:
         id: tags
         run: |
           ver="${{ needs.resolve-version.outputs.version_no_v }}"
-          repo="ghcr.io/${{ github.repository_owner }}/secguard-server"
+          # Image name matches the repo (`secguard`), not the binary
+          # (`secguard-server`). The earlier `secguard-server` package
+          # ended up org-orphaned (created from a manual push without
+          # the OCI source label), and the workflow's GITHUB_TOKEN can't
+          # claim a pre-existing org package. Pushing to `secguard` for
+          # the first time from CI lets GitHub auto-link via the
+          # `org.opencontainers.image.source` label baked into the image.
+          repo="ghcr.io/${{ github.repository_owner }}/secguard"
           # Always publish: full version + major.minor + latest.
           major_minor="${ver%.*}"
           {
