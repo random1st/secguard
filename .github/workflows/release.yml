@@ -3,15 +3,42 @@ name: Release
 on:
   push:
     tags: ["v*"]
+  workflow_dispatch:
+    # Manual trigger lets us re-publish artifacts for an existing tag
+    # (e.g. when a release.yml change is merged after the tag was cut)
+    # without having to delete-and-re-tag.
+    inputs:
+      version:
+        description: "Version to release (e.g. v0.4.0). Must already exist as a git tag."
+        required: true
+        type: string
 
 permissions:
   contents: write
+  packages: write
 
 env:
   CARGO_TERM_COLOR: always
 
 jobs:
+  resolve-version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+      version_no_v: ${{ steps.v.outputs.version_no_v }}
+    steps:
+      - id: v
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            ver="${{ inputs.version }}"
+          else
+            ver="${GITHUB_REF_NAME}"
+          fi
+          echo "version=${ver}" >> "$GITHUB_OUTPUT"
+          echo "version_no_v=${ver#v}" >> "$GITHUB_OUTPUT"
+
   build:
+    needs: resolve-version
     strategy:
       matrix:
         include:
@@ -27,6 +54,8 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.resolve-version.outputs.version }}
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
@@ -51,22 +80,123 @@ jobs:
           name: secguard-${{ matrix.target }}
           path: secguard-${{ matrix.target }}.tar.gz
 
-  release:
-    needs: build
+  docker:
+    needs: resolve-version
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.resolve-version.outputs.version }}
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Compute image tags
+        id: tags
+        run: |
+          ver="${{ needs.resolve-version.outputs.version_no_v }}"
+          repo="ghcr.io/${{ github.repository_owner }}/secguard-server"
+          # Always publish: full version + major.minor + latest.
+          major_minor="${ver%.*}"
+          {
+            echo "tags<<EOF"
+            echo "${repo}:${ver}"
+            echo "${repo}:${major_minor}"
+            echo "${repo}:latest"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Build and push (linux/amd64, linux/arm64)
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          platforms: linux/amd64,linux/arm64
+          tags: ${{ steps.tags.outputs.tags }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          provenance: false
+
+  helm:
+    needs: [resolve-version, docker]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.resolve-version.outputs.version }}
+
+      - name: Install Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: v3.16.2
+
+      - name: Log in to GHCR (Helm OCI)
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | helm registry login ghcr.io \
+            --username "${{ github.actor }}" --password-stdin
+
+      - name: Verify chart version matches release version
+        run: |
+          ver="${{ needs.resolve-version.outputs.version_no_v }}"
+          chart_ver=$(grep '^version:' deploy/helm/secguard/Chart.yaml | awk '{print $2}')
+          app_ver=$(grep '^appVersion:' deploy/helm/secguard/Chart.yaml | awk '{print $2}' | tr -d '"')
+          if [[ "${chart_ver}" != "${ver}" || "${app_ver}" != "${ver}" ]]; then
+            echo "Chart.yaml version (${chart_ver}) / appVersion (${app_ver}) does not match release ${ver}." >&2
+            echo "Bump deploy/helm/secguard/Chart.yaml before tagging." >&2
+            exit 1
+          fi
+
+      - name: Package chart
+        run: |
+          mkdir -p dist
+          helm package deploy/helm/secguard \
+            --destination dist \
+            --version "${{ needs.resolve-version.outputs.version_no_v }}" \
+            --app-version "${{ needs.resolve-version.outputs.version_no_v }}"
+
+      - name: Push chart to OCI registry
+        run: |
+          helm push \
+            "dist/secguard-${{ needs.resolve-version.outputs.version_no_v }}.tgz" \
+            "oci://ghcr.io/${{ github.repository_owner }}/charts"
+
+      - name: Upload packaged chart as release asset
+        uses: actions/upload-artifact@v7
+        with:
+          name: secguard-helm-chart
+          path: dist/secguard-*.tgz
+
+  release:
+    needs: [resolve-version, build, docker, helm]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.resolve-version.outputs.version }}
+
       - uses: actions/download-artifact@v8
         with:
           merge-multiple: true
 
       - name: Create checksums
-        run: sha256sum secguard-*.tar.gz > checksums-sha256.txt
+        run: sha256sum secguard-*.tar.gz secguard-*.tgz > checksums-sha256.txt
 
       - name: Create release
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ needs.resolve-version.outputs.version }}
           generate_release_notes: true
           files: |
             secguard-*.tar.gz
+            secguard-*.tgz
             checksums-sha256.txt

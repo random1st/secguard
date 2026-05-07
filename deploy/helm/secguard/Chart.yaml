@@ -1,6 +1,23 @@
 apiVersion: v2
 name: secguard
-description: Security guard HTTP service for AI agent hooks
+description: Security guard HTTP service for AI agent hooks (Claude Code, Codex, Gemini CLI, MCP). Catches destructive shell commands before execution.
 type: application
-version: 0.1.0
-appVersion: "0.1.0"
+# Chart version is bumped together with appVersion so users can pin
+# both via `helm install --version X.Y.Z`. The release.yml workflow
+# packages this chart into the OCI Helm registry on GHCR alongside
+# the secguard-server Docker image.
+version: 0.4.0
+appVersion: "0.4.0"
+home: https://github.com/diana-random1st/secguard
+sources:
+  - https://github.com/diana-random1st/secguard
+maintainers:
+  - name: random1st
+    url: https://github.com/diana-random1st
+keywords:
+  - security
+  - ai-agents
+  - claude-code
+  - codex
+  - guard
+  - shell

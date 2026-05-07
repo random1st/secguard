@@ -151,15 +151,25 @@ The hook path also runs a throttled (once per 7 days) detached check in the back
 ## HTTP server & k8s deployment
 
 ```bash
-# Local
+# Local Docker (multi-arch image — linux/amd64, linux/arm64)
 docker run -p 8080:8080 -e SECGUARD_TOKEN=your-token \
   ghcr.io/diana-random1st/secguard-server:latest
 
-# Kubernetes (Helm)
+# Kubernetes (Helm OCI registry)
+helm install secguard \
+  oci://ghcr.io/diana-random1st/charts/secguard \
+  --version 0.4.0 \
+  --set auth.token=your-token \
+  --set target=claude
+
+# Or pin to a specific image tag and install from local checkout:
 helm install secguard ./deploy/helm/secguard \
+  --set image.tag=0.4.0 \
   --set auth.token=your-token \
   --set target=claude
 ```
+
+Image tags follow semver: `0.4.0` (exact), `0.4` (latest patch in minor), `latest` (most recent release). The OCI Helm registry mirrors the same scheme. Both are published by `release.yml` on every `v*` tag.
 
 Then point Claude Code HTTP hooks to it:
 
