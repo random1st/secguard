@@ -3,7 +3,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends clang libclang-
     rm -rf /var/lib/apt/lists/*
 WORKDIR /src
 COPY . .
-RUN cargo build --release -p secguard-server && \
+RUN cargo build --release -p secguard-server --features ml && \
     strip target/release/secguard-server
 
 FROM debian:bookworm-slim
