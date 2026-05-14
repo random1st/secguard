@@ -97,10 +97,15 @@ fn main() -> anyhow::Result<()> {
 
     let result = match cli.command {
         Commands::Scan { dir, format } => cmd_scan::run(dir, &format),
-        Commands::Guard { subcommand, command } => match subcommand {
-            Some(GuardSubcommand::Suggest { top, min_count, telemetry }) => {
-                cmd_guard::run_suggest(top, min_count, telemetry)
-            }
+        Commands::Guard {
+            subcommand,
+            command,
+        } => match subcommand {
+            Some(GuardSubcommand::Suggest {
+                top,
+                min_count,
+                telemetry,
+            }) => cmd_guard::run_suggest(top, min_count, telemetry),
             None => cmd_guard::run(command),
         },
         Commands::Hook { mode, target } => hook::run(mode, target),

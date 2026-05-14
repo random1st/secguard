@@ -58,9 +58,18 @@ fn is_single_command_safe(cmd: &str, config: &GuardConfig) -> bool {
     // destructive SQL keywords (drop, delete, truncate, alter).
     if cmd.starts_with("psql ") || cmd.starts_with("psql -") || cmd == "psql" {
         let lower = cmd.to_ascii_lowercase();
-        let has_destructive_sql = ["drop ", "drop;", "delete ", "delete;", "truncate ", "truncate;", "alter ", "alter;"]
-            .iter()
-            .any(|kw| lower.contains(kw));
+        let has_destructive_sql = [
+            "drop ",
+            "drop;",
+            "delete ",
+            "delete;",
+            "truncate ",
+            "truncate;",
+            "alter ",
+            "alter;",
+        ]
+        .iter()
+        .any(|kw| lower.contains(kw));
         return !has_destructive_sql;
     }
     // terraform — only read/inspect subcommands are safe
@@ -76,23 +85,19 @@ fn is_single_command_safe(cmd: &str, config: &GuardConfig) -> bool {
             "version",
         ];
         let rest = cmd["terraform ".len()..].trim_start();
-        return safe_subs.iter().any(|s| rest == *s || rest.starts_with(&format!("{s} ")));
+        return safe_subs
+            .iter()
+            .any(|s| rest == *s || rest.starts_with(&format!("{s} ")));
     }
     // brew — only read/install subcommands are safe; uninstall/cleanup are destructive
     if cmd.starts_with("brew ") {
         let safe_subs = [
-            "install",
-            "upgrade",
-            "list",
-            "info",
-            "search",
-            "update",
-            "outdated",
-            "tap",
-            "leaves",
+            "install", "upgrade", "list", "info", "search", "update", "outdated", "tap", "leaves",
         ];
         let rest = cmd["brew ".len()..].trim_start();
-        return safe_subs.iter().any(|s| rest == *s || rest.starts_with(&format!("{s} ")));
+        return safe_subs
+            .iter()
+            .any(|s| rest == *s || rest.starts_with(&format!("{s} ")));
     }
     // Package managers — safe subcommands only
     if is_safe_package_manager_command(cmd) {
@@ -115,20 +120,8 @@ fn is_single_command_safe(cmd: &str, config: &GuardConfig) -> bool {
 /// Destructive ones (cargo clean, npm uninstall, pip uninstall, etc.) are NOT included.
 fn is_safe_package_manager_command(cmd: &str) -> bool {
     const SAFE_SUBCOMMANDS: &[&str] = &[
-        "build",
-        "check",
-        "test",
-        "install",
-        "ci",
-        "add",
-        "sync",
-        "run",
-        "list",
-        "show",
-        "info",
-        "search",
-        "version",
-        "--help",
+        "build", "check", "test", "install", "ci", "add", "sync", "run", "list", "show", "info",
+        "search", "version", "--help",
     ];
     const MANAGERS: &[&str] = &["cargo", "npm", "bun", "yarn", "pnpm", "pip", "uv"];
 
@@ -303,14 +296,20 @@ mod tests {
     #[test]
     fn terraform_plan_is_policy_safe() {
         assert!(is_safe_by_policy("terraform plan", &cfg()));
-        assert!(is_safe_by_policy("terraform plan -var-file=foo.tfvars", &cfg()));
+        assert!(is_safe_by_policy(
+            "terraform plan -var-file=foo.tfvars",
+            &cfg()
+        ));
         assert!(is_safe_by_policy("terraform show", &cfg()));
         assert!(is_safe_by_policy("terraform validate", &cfg()));
         assert!(is_safe_by_policy("terraform fmt", &cfg()));
         assert!(is_safe_by_policy("terraform version", &cfg()));
         assert!(is_safe_by_policy("terraform output -json", &cfg()));
         assert!(is_safe_by_policy("terraform state list", &cfg()));
-        assert!(is_safe_by_policy("terraform state show aws_s3_bucket.b", &cfg()));
+        assert!(is_safe_by_policy(
+            "terraform state show aws_s3_bucket.b",
+            &cfg()
+        ));
     }
 
     #[test]

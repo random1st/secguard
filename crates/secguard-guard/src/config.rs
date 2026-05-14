@@ -89,18 +89,12 @@ fn load_from_path(path: &std::path::Path) -> GuardConfig {
         Ok(text) => match toml::from_str::<GuardConfig>(&text) {
             Ok(cfg) => cfg,
             Err(e) => {
-                eprintln!(
-                    "[secguard] config parse error: {} — using defaults",
-                    e
-                );
+                eprintln!("[secguard] config parse error: {} — using defaults", e);
                 GuardConfig::default()
             }
         },
         Err(e) => {
-            eprintln!(
-                "[secguard] config read error: {} — using defaults",
-                e
-            );
+            eprintln!("[secguard] config read error: {} — using defaults", e);
             GuardConfig::default()
         }
     }
@@ -124,7 +118,9 @@ safe_command_prefixes = ["gws", "rclone copy", "tailscale status"]
 "#;
         let cfg: GuardConfig = toml::from_str(toml_text).expect("parse failed");
         assert!(cfg.safe_kill_targets.contains(&"postgres".to_string()));
-        assert!(cfg.safe_command_prefixes.contains(&"rclone copy".to_string()));
+        assert!(cfg
+            .safe_command_prefixes
+            .contains(&"rclone copy".to_string()));
         assert_eq!(cfg.safe_command_prefixes.len(), 3);
     }
 
@@ -178,9 +174,7 @@ safe_command_prefixes = ["gws", "rclone copy", "tailscale status"]
 
         let cfg = load_from_path(tmp.path());
         assert!(
-            cfg.safe_command_prefixes
-                .iter()
-                .any(|p| p == "rclone copy"),
+            cfg.safe_command_prefixes.iter().any(|p| p == "rclone copy"),
             "rclone copy should be in safe_command_prefixes"
         );
 

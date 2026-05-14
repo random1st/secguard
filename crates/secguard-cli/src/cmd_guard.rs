@@ -31,11 +31,16 @@ pub fn run(command: Option<String>) -> anyhow::Result<()> {
 ///
 /// Reads `~/.secguard/telemetry.jsonl`, filters for brain-only destructive verdicts,
 /// groups by command prefix (first whitespace-delimited token), and prints the top N.
-pub fn run_suggest(top: usize, min_count: usize, telemetry_path: Option<String>) -> anyhow::Result<()> {
+pub fn run_suggest(
+    top: usize,
+    min_count: usize,
+    telemetry_path: Option<String>,
+) -> anyhow::Result<()> {
     let path = match telemetry_path {
         Some(p) => std::path::PathBuf::from(p),
         None => {
-            let home = dirs::home_dir().ok_or_else(|| anyhow::anyhow!("cannot determine home directory"))?;
+            let home = dirs::home_dir()
+                .ok_or_else(|| anyhow::anyhow!("cannot determine home directory"))?;
             home.join(".secguard").join("telemetry.jsonl")
         }
     };
@@ -59,11 +64,18 @@ pub fn run_suggest(top: usize, min_count: usize, telemetry_path: Option<String>)
             continue;
         };
         let verdict = ev.get("verdict").and_then(|v| v.as_str()).unwrap_or("");
-        let source = ev.get("verdict_source").and_then(|v| v.as_str()).unwrap_or("");
+        let source = ev
+            .get("verdict_source")
+            .and_then(|v| v.as_str())
+            .unwrap_or("");
         if verdict != "destructive" || source != "brain" {
             continue;
         }
-        let cmd = ev.get("command").and_then(|v| v.as_str()).unwrap_or("").trim();
+        let cmd = ev
+            .get("command")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .trim();
         if cmd.is_empty() {
             continue;
         }
@@ -149,13 +161,28 @@ mod tests {
         let mut counts: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
         for line in content.lines() {
             let line = line.trim();
-            if line.is_empty() { continue; }
-            let Ok(ev) = serde_json::from_str::<serde_json::Value>(line) else { continue; };
+            if line.is_empty() {
+                continue;
+            }
+            let Ok(ev) = serde_json::from_str::<serde_json::Value>(line) else {
+                continue;
+            };
             let verdict = ev.get("verdict").and_then(|v| v.as_str()).unwrap_or("");
-            let source = ev.get("verdict_source").and_then(|v| v.as_str()).unwrap_or("");
-            if verdict != "destructive" || source != "brain" { continue; }
-            let cmd = ev.get("command").and_then(|v| v.as_str()).unwrap_or("").trim();
-            if cmd.is_empty() { continue; }
+            let source = ev
+                .get("verdict_source")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
+            if verdict != "destructive" || source != "brain" {
+                continue;
+            }
+            let cmd = ev
+                .get("command")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .trim();
+            if cmd.is_empty() {
+                continue;
+            }
             let prefix = cmd.split_whitespace().next().unwrap_or(cmd).to_string();
             *counts.entry(prefix).or_insert(0) += 1;
         }
@@ -165,7 +192,8 @@ mod tests {
         assert_eq!(counts.get("psql"), Some(&1));
 
         // min_count=3 filters out psql
-        let mut ranked: Vec<(String, usize)> = counts.into_iter().filter(|(_, c)| *c >= 3).collect();
+        let mut ranked: Vec<(String, usize)> =
+            counts.into_iter().filter(|(_, c)| *c >= 3).collect();
         ranked.sort_by(|a, b| b.1.cmp(&a.1));
         assert_eq!(ranked.len(), 2);
         assert_eq!(ranked[0].0, "diana");
@@ -188,17 +216,35 @@ mod tests {
         let mut counts: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
         for line in content.lines() {
             let line = line.trim();
-            if line.is_empty() { continue; }
-            let Ok(ev) = serde_json::from_str::<serde_json::Value>(line) else { continue; };
+            if line.is_empty() {
+                continue;
+            }
+            let Ok(ev) = serde_json::from_str::<serde_json::Value>(line) else {
+                continue;
+            };
             let verdict = ev.get("verdict").and_then(|v| v.as_str()).unwrap_or("");
-            let source = ev.get("verdict_source").and_then(|v| v.as_str()).unwrap_or("");
-            if verdict != "destructive" || source != "brain" { continue; }
-            let cmd = ev.get("command").and_then(|v| v.as_str()).unwrap_or("").trim();
-            if cmd.is_empty() { continue; }
+            let source = ev
+                .get("verdict_source")
+                .and_then(|v| v.as_str())
+                .unwrap_or("");
+            if verdict != "destructive" || source != "brain" {
+                continue;
+            }
+            let cmd = ev
+                .get("command")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .trim();
+            if cmd.is_empty() {
+                continue;
+            }
             let prefix = cmd.split_whitespace().next().unwrap_or(cmd).to_string();
             *counts.entry(prefix).or_insert(0) += 1;
         }
         // rm is heuristic, should not appear
-        assert!(!counts.contains_key("rm"), "rm should not appear in brain-only counts");
+        assert!(
+            !counts.contains_key("rm"),
+            "rm should not appear in brain-only counts"
+        );
     }
 }

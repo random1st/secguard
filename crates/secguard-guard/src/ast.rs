@@ -282,8 +282,7 @@ impl<'a> Walker<'a> {
                     self.bindings.insert(name, value);
                 } else if let Some((name, _)) = static_assignment_name(raw) {
                     if TRUSTED_ENV_NAMES.contains(&name.as_str()) {
-                        self.bindings
-                            .insert(name, "__TAINTED_OPAQUE__".to_string());
+                        self.bindings.insert(name, "__TAINTED_OPAQUE__".to_string());
                     }
                 }
             }
@@ -910,10 +909,7 @@ impl<'a> Walker<'a> {
                     None => {
                         let mut full_chain = chain.clone();
                         self.commands.push(EffectiveCommand {
-                            argv: vec![
-                                "__indirect_unresolved__".to_string(),
-                                body.clone(),
-                            ],
+                            argv: vec!["__indirect_unresolved__".to_string(), body.clone()],
                             cwd: self.cwd.clone(),
                             span: SpanKind::Executed,
                             wrappers: full_chain.drain(..).collect(),
@@ -1228,7 +1224,10 @@ fn unwrap_wrapper(argv: &[String]) -> Option<(Wrapper, Vec<String>, bool, bool, 
             // body is not a literal command but a source argument.
             Some((
                 Wrapper::Shell,
-                vec!["__indirect_unresolved__".to_string(), format!("source {target}")],
+                vec![
+                    "__indirect_unresolved__".to_string(),
+                    format!("source {target}"),
+                ],
                 false,
                 false,
                 None,
@@ -2125,10 +2124,7 @@ mod tests {
         let bad = c
             .iter()
             .any(|cmd| cmd.argv[0].starts_with("__") && cmd.argv[0].ends_with("__"));
-        assert!(
-            !bad,
-            "expected NO marker for legit `{src}`, got: {c:#?}"
-        );
+        assert!(!bad, "expected NO marker for legit `{src}`, got: {c:#?}");
     }
 
     // Bypass set —————————————————————————————————————————————————
