@@ -5,6 +5,12 @@ All notable changes to this project are recorded here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 the project uses [Semantic Versioning](https://semver.org/).
 
+## [0.5.2]
+
+### Fixed
+
+- Workspace `Cargo.toml` accidentally included `crates/secguard-mcp` (an unfinished, untracked crate) in members during the 0.5.1 commit. CI and the release build failed to load the missing manifest. 0.5.2 removes the reference — no functional change. 0.5.1 should not be installed; use 0.5.2 instead.
+
 ## [0.5.1]
 
 ### Fixed

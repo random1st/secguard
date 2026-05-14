@@ -5,12 +5,11 @@ members = [
     "crates/secguard-guard",
     "crates/secguard-cli",
     "crates/secguard-server",
-    "crates/secguard-mcp",
 ]
 resolver = "2"
 
 [workspace.package]
-version = "0.5.1"
+version = "0.5.2"
 edition = "2021"
 license = "Apache-2.0 WITH Commons-Clause-1.0"
 repository = "https://github.com/diana-random1st/secguard"
