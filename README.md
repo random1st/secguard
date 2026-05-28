@@ -1,5 +1,9 @@
 # secguard
 
+> ⚠️ **Standalone build deprecated as of v0.5.3.** Active development continues inside the Diana monolith (`diana-guard`, `diana-secrets`, `diana-secguard-brain` crates). This repository remains the public release surface: new versions are synced here from the canonical sources via `tools/release-secguard.sh` (see [decision.secguard-sync-mechanism](https://linear.app/random1st/issue/RAN-424)). Use the published binary — do not depend on the source layout here for downstream development.
+>
+> Active hardening epic: [RAN-411 secguard v2](https://linear.app/random1st/issue/RAN-411) — blast×reversibility scoring, blacklist/whitelist subsystem, indirect prompt-injection detector, and more.
+
 3-level security guard for AI coding agents. Catches leaked credentials and blocks destructive shell commands before they execute.
 
 Built for [Claude Code](https://claude.ai/code), Gemini CLI, and Codex workflows. Also works anywhere: CI pipelines, git pre-commit, standalone CLI.
