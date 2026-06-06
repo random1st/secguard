@@ -11,6 +11,7 @@
 
 use crate::ast::{EffectiveCommand, SpanKind};
 use crate::config::GuardConfig;
+use crate::matcher::{self, ListRule};
 use crate::rule_id::RuleId;
 
 pub type RuleHit = (RuleId, String);
@@ -29,6 +30,27 @@ pub fn classify(cmd: &EffectiveCommand, config: &GuardConfig) -> Option<RuleHit>
         }
     }
     None
+}
+
+/// Configured path denies must run before configured command allows in
+/// `check_detailed`, so expose just that narrow predicate separately from the
+/// default heuristic dispatcher.
+pub(crate) fn classify_configured_path_deny(
+    cmd: &EffectiveCommand,
+    config: &GuardConfig,
+) -> Option<RuleHit> {
+    if cmd.span != SpanKind::Executed {
+        return None;
+    }
+    let head = cmd.head()?;
+    if !matches!(head, "rm" | "unlink" | "rmdir") {
+        return None;
+    }
+
+    let parsed = parse_rm_args(head, cmd.args());
+    let effective_operands = effectivise_operands(&parsed.operands, cmd.cwd.as_deref());
+    let lists = crate::config::build_rule_lists(config);
+    configured_path_deny(head, &parsed, &effective_operands, &lists.deny.paths)
 }
 
 type Rule = fn(&EffectiveCommand, &GuardConfig) -> Option<RuleHit>;
@@ -344,6 +366,11 @@ fn rule_rm_family(c: &EffectiveCommand, config: &GuardConfig) -> Option<RuleHit>
         }
     }
 
+    let lists = crate::config::build_rule_lists(config);
+    if let Some(hit) = configured_path_deny(head, &parsed, &effective_operands, &lists.deny.paths) {
+        return Some(hit);
+    }
+
     if head == "rm" && !parsed.recursive {
         return None;
     }
@@ -353,7 +380,8 @@ fn rule_rm_family(c: &EffectiveCommand, config: &GuardConfig) -> Option<RuleHit>
     let all_safe = !effective_operands.is_empty()
         && effective_operands.iter().all(|op| {
             if local_paths_apply {
-                is_safe_operand(op, &config.safe_rm_patterns)
+                path_allowed_by_config(op, &lists.allow.paths)
+                    || is_safe_operand(op, &config.safe_rm_patterns)
             } else {
                 false
             }
@@ -381,6 +409,39 @@ fn rule_rm_family(c: &EffectiveCommand, config: &GuardConfig) -> Option<RuleHit>
         rule,
         format!("{label} {suffix}: {}", join_operands(&parsed.operands)),
     ))
+}
+
+fn configured_path_deny(
+    head: &str,
+    parsed: &RmArgs,
+    operands: &[String],
+    deny_paths: &[ListRule],
+) -> Option<RuleHit> {
+    for op in operands {
+        if let matcher::Decision::Deny { rule_id, reason } = matcher::evaluate(op, deny_paths, &[])
+        {
+            let detail = reason
+                .map(|r| format!("config deny path rule {rule_id} on {op}: {r}"))
+                .unwrap_or_else(|| format!("config deny path rule {rule_id} on {op}"));
+            return Some((rm_rule_id(head, parsed), detail));
+        }
+    }
+    None
+}
+
+fn path_allowed_by_config(operand: &str, allow_paths: &[ListRule]) -> bool {
+    matches!(
+        matcher::evaluate(operand, &[], allow_paths),
+        matcher::Decision::Allow { .. }
+    )
+}
+
+fn rm_rule_id(head: &str, parsed: &RmArgs) -> RuleId {
+    if head == "rm" && parsed.recursive {
+        RuleId::RmRf
+    } else {
+        RuleId::RmRecursive
+    }
 }
 
 #[derive(Default, Debug)]

@@ -89,6 +89,67 @@ impl RuleId {
     }
 }
 
+impl RuleId {
+    /// 2D damage score for this rule (RAN-414).
+    ///
+    /// Exhaustive `match` with **no wildcard arm**: adding a [`RuleId`]
+    /// variant without a score here is a compile error (E0004,
+    /// non-exhaustive match). This is the type-system enforcement for
+    /// "every rule must declare a blast × reversibility score" — there is
+    /// no runtime fallback to forget. See `docs/scoring.md`.
+    pub const fn score(self) -> crate::scoring::Decision {
+        use crate::scoring::Decision as D;
+        match self {
+            // Git — mostly local repo state; reflog/up-down make many recoverable.
+            RuleId::GitForcePush => D::new(3, 2),
+            // `git reset --hard` discards uncommitted working-tree changes,
+            // which the reflog does NOT recover (it tracks commits, not the
+            // working tree) — reversibility 0, not 2. `--merge` only drops
+            // merge state and refuses to clobber local edits, so it stays at 2.
+            RuleId::GitResetHard => D::new(1, 0),
+            RuleId::GitResetMerge => D::new(1, 2),
+            RuleId::GitCleanForce => D::new(1, 0), // untracked files: no git recovery
+            RuleId::GitCheckoutPathspec => D::new(1, 1),
+            RuleId::GitRestorePathspec => D::new(1, 1),
+            RuleId::GitBranchForceDelete => D::new(1, 2),
+            RuleId::GitStashLoss => D::new(1, 1),
+            RuleId::GitHistoryRewrite => D::new(3, 1), // rewrites shared history
+            // rm family — rm.rs only emits these for non-safe (dangerous) paths.
+            RuleId::RmRf => D::new(3, 0),
+            RuleId::RmRecursive => D::new(2, 0),
+            RuleId::FindDelete => D::new(2, 0),
+            RuleId::Shred => D::new(1, 0), // single file, intentionally permanent
+            // Databases — data loss, frequently prod, no assumed backup.
+            RuleId::SqlDestructive => D::new(4, 0),
+            RuleId::RedisDestructive => D::new(4, 0),
+            RuleId::MongoDestructive => D::new(4, 0),
+            RuleId::OpensearchMutation => D::new(3, 1),
+            // Local infra / arbitrary exec.
+            RuleId::DockerPrune => D::new(2, 2), // re-pullable
+            RuleId::PipeToShell => D::new(3, 1), // arbitrary remote code
+            RuleId::IndirectUnresolved => D::new(2, 1),
+            RuleId::NoVerify => D::new(1, 3), // skips hooks; commit recoverable
+            RuleId::UnsafeKill => D::new(2, 3), // process restartable
+            // Cloud / remote resources.
+            RuleId::HttpDeleteExternal => D::new(3, 1),
+            RuleId::AwsS3Rm => D::new(3, 0),
+            RuleId::GhDestructive => D::new(3, 1),
+            RuleId::TerraformMutation => D::new(3, 1),
+            RuleId::HelmMutation => D::new(3, 2), // helm rollback exists
+            RuleId::KubectlMutation => D::new(3, 2), // re-apply manifest
+            RuleId::DockerPush => D::new(2, 2),   // registry tag overwrite
+            RuleId::GsutilMutation => D::new(3, 0),
+            RuleId::GraphqlMutation => D::new(3, 1),
+            // PaaS / managed DB.
+            RuleId::SaasDestroy => D::new(3, 0),
+            RuleId::SupabaseDbMutation => D::new(4, 0),
+            RuleId::OrmMigration => D::new(2, 2), // up/down migrations
+            // ML catch-all — conservative default for flagged unknowns.
+            RuleId::Brain => D::new(2, 1),
+        }
+    }
+}
+
 impl std::fmt::Display for RuleId {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.write_str(self.as_code())

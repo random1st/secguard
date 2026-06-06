@@ -1,27 +1,47 @@
 [package]
 name = "secguard-guard"
-description = "Destructive command detection for secguard"
-version.workspace = true
+description = "Destructive command detection — 3-phase pipeline (policy allowlist -> heuristic rules -> ML brain). Renamed from secguard-guard on 2026-05-20; the destructive-guard layer now has its own first-class Mid Layer name."
+version = "0.6.0"
 edition.workspace = true
-license.workspace = true
-repository.workspace = true
+license = "Apache-2.0 WITH Commons-Clause-1.0"
 
 [features]
 default = []
 ml = ["secguard-brain"]
 
 [dependencies]
-toml = { workspace = true }
-dirs = { workspace = true }
+# toml not in Diana workspace deps; pin per-crate. Workspace addition is a
+# follow-up if other Diana crates start using toml directly.
+toml = "0.8"
+# secguard upstream pins dirs = "6"; Diana workspace pins dirs = "5". Keep
+# 6 here per-crate to avoid cascading the upgrade in this slice.
+dirs = "6"
 serde = { workspace = true }
 serde_json = { workspace = true }
 log = { workspace = true }
 shell-words = "1"
-tree-sitter = "0.26"
-tree-sitter-bash = "0.25"
+# Downgraded from upstream secguard (which used tree-sitter 0.26 + tree-sitter-bash 0.25).
+# Reason: tree-sitter is a -sys crate with `links = "tree-sitter"` so only one
+# version can be linked in the final binary. Diana already uses 0.24 across
+# tree-sitter-rust / python / typescript / javascript / go. Forcing 0.26 here
+# would force an upgrade of every other tree-sitter-* crate Diana uses.
+# Going down is the cheaper direction. If secguard-guard's AST code relies on
+# any 0.25/0.26-only API, we either restore that API surface from the upgrade
+# delta or cap the AST module's expectations — recorded in commit body.
+tree-sitter = { workspace = true }
+tree-sitter-bash = "0.23"
 secguard-brain = { path = "../secguard-brain", optional = true }
+globset = "0.4"
+regex = "1"
+thiserror = "2"
+notify = "7"
 
 [dev-dependencies]
-dirs = { workspace = true }
+criterion = { version = "0.5", default-features = false, features = ["html_reports"] }
+dirs = "6"
+proptest = "1"
 tempfile = "3"
 
+[[bench]]
+name = "matcher_lookup"
+harness = false

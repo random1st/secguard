@@ -1,10 +1,9 @@
 [package]
 name = "secguard-secrets"
-description = "Secret and credential detection for secguard"
-version.workspace = true
+description = "Secret and credential detection. Renamed from secguard-secrets on 2026-05-20 to align with the canonical Mid Layer name in ~/.diana/src/CLAUDE.md."
+version = "0.6.0"
 edition.workspace = true
-license.workspace = true
-repository.workspace = true
+license = "Apache-2.0 WITH Commons-Clause-1.0"
 
 [features]
 default = []
@@ -15,7 +14,12 @@ regex = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 log = { workspace = true }
+# Baseline (RAN-415): content fingerprints + gitignore-aware repo walk.
+sha2 = { workspace = true }
+ignore = { workspace = true }
+thiserror = "2"
 secguard-brain = { path = "../secguard-brain", optional = true }
 
 [dev-dependencies]
 pretty_assertions = "1"
+tempfile = "3"

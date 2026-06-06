@@ -1,16 +1,21 @@
 [package]
 name = "secguard-brain"
-description = "GGUF micro-brain inference for secguard classifiers"
-version.workspace = true
+description = "GGUF micro-brain inference for the destructive/secret classifiers. Renamed from secguard-brain on 2026-05-20. Kept distinct from diana-brain (general voice/router inference) — different model artifacts, different call sites."
+version = "0.6.0"
 edition.workspace = true
-license.workspace = true
-repository.workspace = true
+license = "Apache-2.0 WITH Commons-Clause-1.0"
 
 [features]
 default = []
 metal = ["llama-cpp-2/metal"]
 
 [dependencies]
+# llama-cpp-2 git dep is redirected to vendor/llama-cpp-rs-patched via the
+# workspace [patch.crates-io] in rust/Cargo.toml, so this resolves to the
+# same patched build that diana-brain uses — no duplicate inference engine.
 llama-cpp-2 = { git = "https://github.com/utilityai/llama-cpp-rs.git" }
 log = { workspace = true }
-dirs = { workspace = true }
+# secguard upstream pins dirs = "6"; Diana workspace pins dirs = "5". Keeping
+# 6 here per-crate so we do not cascade an upgrade across all Diana crates
+# in this slice. Alignment to a single dirs version is a separate follow-up.
+dirs = "6"
