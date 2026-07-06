@@ -1,0 +1,2 @@
+review gate passed (built-in): 1 review-evidence with verdict=pass
+  - hypothesis=codex-fail-closed-coverage-matrix-close-the-fail-open-without-regressing-enforcement evidence_id=20260705-gate-review-codex-fail-closed-coverage-matrix-close-the-fail-open-without-regressing-enforcement formality=4

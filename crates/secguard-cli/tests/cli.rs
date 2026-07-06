@@ -471,6 +471,57 @@ fn hook_secrets_clean_input_for_codex_returns_empty_json() {
 }
 
 #[test]
+fn hook_secrets_codex_secret_fails_closed() {
+    // Codex PreToolUse cannot apply `updatedInput`, so a redacted copy would be
+    // ignored and the original secret would reach the tool. Default policy
+    // (codex_secrets_block = true) fails closed: deny the call. The deny reason
+    // names the credential type, never the secret value.
+    let key = format!("AKIA{}", "IOSFODNN7EXAMPLE");
+    let input = serde_json::json!({
+        "hook_event_name": "PreToolUse",
+        "tool_name": "Bash",
+        "tool_input": { "command": format!("echo {key}") }
+    });
+    secguard()
+        .args(["hook", "secrets-scan", "--target", "codex"])
+        .env("SECGUARD_TELEMETRY", "off")
+        .write_stdin(serde_json::to_string(&input).unwrap())
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("\"permissionDecision\":\"deny\""))
+        .stdout(predicate::str::contains("\"systemMessage\""))
+        .stdout(predicate::str::contains("credential(s) detected"))
+        .stdout(predicate::str::contains(key).not());
+}
+
+#[test]
+fn hook_secrets_codex_secret_fail_loud_via_config() {
+    use std::io::Write;
+    // codex_secrets_block = false opts out of the block: the call is allowed but
+    // a warning is surfaced via additionalContext (Codex has no updatedInput to
+    // apply, so this is best-effort visibility, not redaction). No deny.
+    let mut tmp = tempfile::NamedTempFile::new().unwrap();
+    writeln!(tmp, "codex_secrets_block = false").unwrap();
+
+    let key = format!("AKIA{}", "IOSFODNN7EXAMPLE");
+    let input = serde_json::json!({
+        "hook_event_name": "PreToolUse",
+        "tool_name": "Bash",
+        "tool_input": { "command": format!("echo {key}") }
+    });
+    secguard()
+        .args(["hook", "secrets-scan", "--target", "codex"])
+        .env("SECGUARD_CONFIG", tmp.path())
+        .env("SECGUARD_TELEMETRY", "off")
+        .write_stdin(serde_json::to_string(&input).unwrap())
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("credential(s) detected"))
+        .stdout(predicate::str::contains("\"permissionDecision\":\"deny\"").not())
+        .stdout(predicate::str::contains(key).not());
+}
+
+#[test]
 fn hook_secrets_redacts_key_for_gemini() {
     let key = format!("AKIA{}", "IOSFODNN7EXAMPLE");
     let input = serde_json::json!({
@@ -559,7 +610,9 @@ fn init_creates_codex_hooks() {
     assert!(content.contains("PreToolUse"));
     assert!(content.contains("Bash"));
     assert!(content.contains("secguard hook guard"));
-    assert!(!content.contains("secguard hook secrets-scan"));
+    // secrets-scan is now installed for Codex too: it can't redact (no input
+    // rewrite), but it fails closed on a credential instead of passing silently.
+    assert!(content.contains("secguard hook secrets-scan"));
 }
 
 #[test]
@@ -590,6 +643,42 @@ fn init_codex_warns_without_feature_flag_but_still_installs() {
 }
 
 #[test]
+fn init_codex_upgrade_adds_secrets_scan_to_existing_guard_only_install() {
+    // Regression: a Codex install from before secrets-scan shipped has only the
+    // guard hook. Re-running `init codex` after upgrade must ADD the fail-closed
+    // secrets-scan hook, not report "already installed" and leave the user in the
+    // silent fail-open state this change exists to close.
+    let dir = tempfile::tempdir().unwrap();
+    let codex_dir = dir.path().join(".codex");
+    std::fs::create_dir_all(&codex_dir).unwrap();
+    std::fs::write(
+        codex_dir.join("config.toml"),
+        "[features]\ncodex_hooks = true\n",
+    )
+    .unwrap();
+    // Seed a guard-only hooks.json as prior versions produced.
+    std::fs::write(
+        codex_dir.join("hooks.json"),
+        r#"{"hooks":{"PreToolUse":[{"matcher":"Bash","hooks":[{"type":"command","command":"secguard hook guard --target codex"}]}]}}"#,
+    )
+    .unwrap();
+
+    secguard()
+        .args(["init", "codex"])
+        .current_dir(dir.path())
+        .assert()
+        .success();
+
+    let content = std::fs::read_to_string(codex_dir.join("hooks.json")).unwrap();
+    assert!(
+        content.contains("secguard hook secrets-scan"),
+        "upgrade must add the secrets-scan hook; got: {content}"
+    );
+    // The pre-existing guard hook must not be duplicated.
+    assert_eq!(content.matches("hook guard --target codex").count(), 1);
+}
+
+#[test]
 fn init_idempotent() {
     let dir = tempfile::tempdir().unwrap();
 
@@ -608,6 +697,54 @@ fn init_idempotent() {
         .stderr(predicate::str::contains("already installed"));
 }
 
+// ── Selftest (enforcement coverage matrix) ────────────────────────────────────
+
+#[test]
+fn selftest_check_passes() {
+    // The CI gate: --check exits non-zero if any transport cell is uncovered or
+    // any live detection probe misses. Config can only flip enforced<->advisory,
+    // never produce uncovered, so this is hermetic regardless of the runner's
+    // ~/.config/secguard/config.toml.
+    secguard()
+        .args(["selftest", "--check"])
+        .env("SECGUARD_TELEMETRY", "off")
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("RESULT: PASS"))
+        .stdout(predicate::str::contains("uncovered").not());
+}
+
+#[test]
+fn selftest_json_reports_codex_secret_enforced() {
+    use std::io::Write;
+    // Pin an empty config → GuardConfig defaults (strict_block=true,
+    // codex_secrets_block=true) so the matrix is deterministic. The D1 fix must
+    // render the codex × secret-redaction cell as `enforced` (fail-closed),
+    // not the pre-fix silent `uncovered`.
+    let tmp = tempfile::NamedTempFile::new().unwrap();
+    writeln!(tmp.as_file(), "").unwrap();
+
+    let output = secguard()
+        .args(["selftest", "--format", "json"])
+        .env("SECGUARD_CONFIG", tmp.path())
+        .env("SECGUARD_TELEMETRY", "off")
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+
+    let v: serde_json::Value = serde_json::from_slice(&output).expect("valid json");
+    assert_eq!(v["pass"], true);
+    let cell = v["transport"]
+        .as_array()
+        .expect("transport array")
+        .iter()
+        .find(|c| c["target"] == "codex" && c["capability"] == "secret-redaction")
+        .expect("codex secret-redaction cell present");
+    assert_eq!(cell["mode"], "enforced");
+}
+
 // ── Help ─────────────────────────────────────────────────────────────────────
 
 #[test]
@@ -620,7 +757,8 @@ fn help_shows_all_commands() {
         .stdout(predicate::str::contains("guard"))
         .stdout(predicate::str::contains("hook"))
         .stdout(predicate::str::contains("model"))
-        .stdout(predicate::str::contains("init"));
+        .stdout(predicate::str::contains("init"))
+        .stdout(predicate::str::contains("selftest"));
 }
 
 #[test]

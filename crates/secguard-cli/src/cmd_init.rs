@@ -108,7 +108,6 @@ fn install_codex(global: bool) -> anyhow::Result<()> {
     let hooks_path = settings_path(global, ".codex", "hooks.json")?;
     let scope = scope_label(global);
     let bin = current_bin();
-    let marker = "secguard hook";
 
     let config = if config_path.exists() {
         fs::read_to_string(&config_path)?
@@ -128,19 +127,42 @@ fn install_codex(global: bool) -> anyhow::Result<()> {
         "type": "command",
         "command": format!("{bin} hook guard --target codex")
     });
+    let secrets_hook = serde_json::json!({
+        "type": "command",
+        "command": format!("{bin} hook secrets-scan --target codex")
+    });
 
     let mut hooks = load_json_object(&hooks_path)?;
     let pre = ensure_json_array(&mut hooks, &["hooks", "PreToolUse"])?;
 
-    if json_hooks_installed(pre, marker) {
+    // Check each hook type independently, not with a shared "secguard hook"
+    // marker. An existing Codex install from before secrets-scan shipped has
+    // only the guard hook; a coarse marker would match it and short-circuit as
+    // "already installed", leaving the upgrade user without the fail-closed
+    // secrets hook — the exact silent fail-open this change closes.
+    let guard_installed = json_hooks_installed(pre, "hook guard --target codex");
+    let secrets_installed = json_hooks_installed(pre, "hook secrets-scan --target codex");
+
+    if guard_installed && secrets_installed {
         eprintln!("secguard hooks already installed in {scope} Codex hooks");
         return Ok(());
     }
 
-    pre.push(serde_json::json!({
-        "matcher": "Bash",
-        "hooks": [guard_hook]
-    }));
+    if !guard_installed {
+        pre.push(serde_json::json!({
+            "matcher": "Bash",
+            "hooks": [guard_hook]
+        }));
+    }
+    // Codex cannot rewrite tool input, so secrets-scan can't redact there.
+    // It is still installed: on a credential it fails closed (denies the call)
+    // rather than letting the secret through silently. See run_secrets_scan.
+    if !secrets_installed {
+        pre.push(serde_json::json!({
+            "matcher": "Bash|Edit|Write|Agent|mcp__*",
+            "hooks": [secrets_hook]
+        }));
+    }
 
     if let Some(parent) = hooks_path.parent() {
         fs::create_dir_all(parent)?;
@@ -151,7 +173,7 @@ fn install_codex(global: bool) -> anyhow::Result<()> {
     eprintln!("  - client: Codex");
     eprintln!("  - guard: Bash commands checked for destructive ops");
     eprintln!(
-        "  - secrets-scan: not installed for Codex (PreToolUse does not support input rewriting)"
+        "  - secrets-scan: credential in tool input blocks the call (fail-closed; Codex cannot redact — set codex_secrets_block=false to warn instead)"
     );
 
     Ok(())

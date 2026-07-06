@@ -23,6 +23,24 @@ global:
   package_id: null
   owning_package: feat.guard-indirection-hardening
   deprecated: false
+- uuid: c1d5d428-919d-4a03-a954-7f190de22a42
+  artifact_id: dom.secguard.core
+  artifact_type: Domain
+  package_id: null
+  owning_package: feat.enforcement-coverage-matrix
+  deprecated: false
+- uuid: b056b552-8748-420e-aa89-32817b19ea25
+  artifact_id: sys.secguard
+  artifact_type: SoftwareSystem
+  package_id: null
+  owning_package: feat.enforcement-coverage-matrix
+  deprecated: false
+- uuid: 0196fed8-1315-40c1-9b30-f9bf017e8350
+  artifact_id: ctr.secguard.app
+  artifact_type: Container
+  package_id: null
+  owning_package: feat.enforcement-coverage-matrix
+  deprecated: false
 packages:
 - uuid: d136f0b1-d96a-4915-a4ee-90a0d9b85031
   artifact_id: ast_classify
@@ -52,5 +70,23 @@ packages:
   artifact_id: rule_id
   artifact_type: Component
   package_id: feat.guard-indirection-hardening
+  owning_package: null
+  deprecated: false
+- uuid: e3bfab98-1bbf-464a-9362-8689c9eff8a2
+  artifact_id: cap.enforcement-coverage-matrix
+  artifact_type: Capability
+  package_id: feat.enforcement-coverage-matrix
+  owning_package: null
+  deprecated: false
+- uuid: e4416c16-f985-4978-b1b7-35573c576758
+  artifact_id: feat.enforcement-coverage-matrix
+  artifact_type: Feature
+  package_id: feat.enforcement-coverage-matrix
+  owning_package: null
+  deprecated: false
+- uuid: 4f0d782e-21f3-45f4-a44b-b7e80ec66d9f
+  artifact_id: comp.enforcement-coverage-matrix
+  artifact_type: Component
+  package_id: feat.enforcement-coverage-matrix
   owning_package: null
   deprecated: false

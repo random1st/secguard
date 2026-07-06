@@ -4,6 +4,7 @@ mod cmd_guard;
 mod cmd_init;
 pub(crate) mod cmd_model;
 mod cmd_scan;
+mod cmd_selftest;
 pub(crate) mod cmd_update;
 mod hook;
 mod telemetry;
@@ -64,6 +65,16 @@ enum Commands {
         #[arg(long)]
         global: bool,
     },
+    /// Print the enforcement coverage matrix — what secguard actually enforces
+    /// per assistant target and capability (enforced / advisory / uncovered)
+    Selftest {
+        /// Output format: text or json
+        #[arg(long, default_value = "text")]
+        format: String,
+        /// Exit non-zero if any surface is uncovered or a detection probe misses
+        #[arg(long)]
+        check: bool,
+    },
     /// Check for a newer release on GitHub and optionally self-update
     Update {
         /// Only print the status; do not download or replace the binary.
@@ -111,6 +122,7 @@ fn main() -> anyhow::Result<()> {
         Commands::Hook { mode, target } => hook::run(mode, target),
         Commands::Model { model, dir } => cmd_model::run(dir, model),
         Commands::Init { target, global } => cmd_init::run(target, global),
+        Commands::Selftest { format, check } => cmd_selftest::run(&format, check),
         Commands::Update {
             check_only,
             background,

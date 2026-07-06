@@ -1,0 +1,213 @@
+s5d: '1.0'
+id: feat.enforcement-coverage-matrix
+version: 1.0.0
+product: secguard
+tier: high
+allow_update: true
+meta:
+  title: enforcement-coverage-matrix
+  authors:
+  - random1st
+  date: 2026-07-05
+  tickets: []
+  adrs: []
+  renames: []
+context: |
+  ## Problem
+  Conclave (3 providers x 2 rounds, arbiter Opus 4.8) on "where to develop
+  secguard + cross-assistant" reached a unanimous verdict: secguard is a guard
+  (control), not a detection library (reach); enforcement-first. Two grounded
+  findings drive this spec:
+
+  1. VERIFIED BLOCKER - Codex secrets fail-open. `install_codex` never registers
+     the secrets-scan hook, and even when invoked `run_secrets_scan` emits
+     `updatedInput` which Codex ignores (PreToolUse cannot rewrite input). A Codex
+     user with secguard installed gets the destructive-command guard but ZERO
+     secret redaction while the product implies "protected". The secret silently
+     reaches the tool. This contradicts secguard's entire thesis.
+  2. Unanimous #1 move - prove coverage, don't add surface. No artifact shows,
+     per assistant target x capability x mode, whether protection is enforced /
+     advisory / uncovered. Silent fail-open surfaces manufacture false confidence.
+
+  ## Goal
+  - D1: Make Codex secrets fail-closed - deny the tool call when a credential is
+    detected and the target cannot rewrite input; config opt-out to fail-loud.
+    Register the secrets-scan hook for Codex in `install_codex`.
+  - D2: Add `secguard selftest` - an Enforcement Coverage Matrix reporting
+    enforced/advisory/uncovered per target x capability, with a `--check` CI gate
+    that fails when a cell silently regresses to uncovered.
+
+  ## Privacy
+  Classification: Internal
+workflow:
+  mode: plan
+  target_architecture:
+    summary: Every degraded enforcement surface fails closed or loud, never silently open; secguard ships a self-test that proves, per target x capability, exactly what is enforced vs advisory vs uncovered.
+    invariants:
+    - A detected credential on a target that cannot redact results in a denied (blocked) tool call, unless explicitly configured to fail-loud.
+    - No enforcement capability silently degrades to "uncovered" without the coverage matrix reporting it and the --check gate failing.
+    - The coverage-matrix transport truth is derived from the real binary's observed behavior, not a hand-maintained table.
+  delivery_strategy:
+    summary: Two independent bricks on main - the Codex fail-closed fix (small, closes the verified blocker) then the selftest matrix (makes coverage measurable). Both land toward the enforcement-first target state.
+    rationale: Fix the verified fail-open first so the matrix reports it fixed; the matrix then guards against future silent regressions.
+  resources: null
+  role_map:
+    verifier: reviewer
+    reviewer: reviewer
+    owner: human
+    implementer: coder
+  review_policy:
+    cross_model_required: false
+    required_on: []
+  structure_outline: null
+  execution_mode:
+    engine: manual
+    max_iterations: null
+    stop_conditions:
+    - Phase acceptance reached
+    - Approved scope exhausted
+    - New decision required
+  phases:
+  - id: prototype
+    title: Prototype
+    scope: Reduce unknowns before committed implementation
+    roles:
+    - owner
+    - implementer
+    acceptance:
+    - Critical feasibility questions answered
+    - Telemetry approach identified
+    rollback:
+    - Discard spike output if assumptions fail
+  - id: build
+    title: Build
+    scope: Implement approved scope and pass local gates
+    roles:
+    - implementer
+    - reviewer
+    acceptance:
+    - Declared gates pass
+    - Change matches approved scope
+    rollback:
+    - Revert or reconcile if gates or review fail
+  - id: measure
+    title: Measure
+    scope: Collect telemetry and close the loop with an explicit verdict
+    roles:
+    - owner
+    - verifier
+    acceptance:
+    - Telemetry collected against success criteria
+    - Outcome verdict recorded
+    rollback:
+    - Iterate or kill if evidence stays weak
+artifacts:
+  products:
+  - id: secguard
+    name: secguard
+    organization: null
+  domains:
+  - id: dom.secguard.core
+    product: secguard
+    name: secguard core domain
+    classification: supporting
+    description: Scaffold default — rename or split into real bounded contexts
+    team: null
+    maturity_level: null
+  capabilities:
+  - id: cap.enforcement-coverage-matrix
+    domain: dom.secguard.core
+    name: enforcement coverage matrix
+    description: null
+    since: null
+  entities: []
+  features:
+  - id: feat.enforcement-coverage-matrix
+    product: secguard
+    name: enforcement-coverage-matrix
+    description: null
+  use_cases: []
+  systems:
+  - id: sys.secguard
+    product: secguard
+    name: secguard
+  containers:
+  - id: ctr.secguard.app
+    system: sys.secguard
+    name: secguard app
+    technology: null
+  components:
+  - id: comp.enforcement-coverage-matrix
+    feature: feat.enforcement-coverage-matrix
+    domain: dom.secguard.core
+    container: ctr.secguard.app
+    name: enforcement coverage matrix component
+    paths:
+    - crates/secguard-cli/src/
+    - crates/secguard-guard/src/config.rs
+  roles: []
+  concerns: []
+  metrics: []
+  supersystems: []
+  transports: []
+links:
+  feature_to_domain:
+  - domain: dom.secguard.core
+    feature: feat.enforcement-coverage-matrix
+  use_case_to_capability: []
+  use_case_to_entity: []
+  component_to_capability:
+  - component: comp.enforcement-coverage-matrix
+    capability: cap.enforcement-coverage-matrix
+  component_to_entity: []
+  container_to_capability: []
+  concern_to_metric: []
+  component_to_container: []
+  edges: []
+  depends_on: []
+  entity_relations: []
+  capability_to_entity: []
+  capability_to_concern: []
+contracts: []
+gates:
+- kind: schema
+- kind: graph
+- kind: review
+roc: null
+problem: null
+hypotheses:
+- id: codex-fail-closed-coverage-matrix-close-the-fail-open-without-regressing-enforcement
+  title: Codex fail-closed + coverage matrix close the fail-open without regressing enforcement
+  content: Making Codex secrets fail-closed (deny the tool call when a credential is detected and the target cannot rewrite input, config opt-out to fail-loud) plus registering the secrets-scan hook for Codex closes the verified silent fail-open, without weakening Claude/Gemini redaction or the existing destructive-command enforcement. The `secguard selftest` matrix reports enforced/advisory/uncovered per target x capability from live classifier probes + config-aware transport, and its `--check` gate (asserted in tests/cli.rs) fails if any cell regresses to uncovered or a probe misses — so a future reopening of the fail-open breaks CI instead of shipping quietly.
+  scope: crates/secguard-cli (hook.rs, cmd_init.rs, main.rs, cmd_selftest.rs, tests/cli.rs), crates/secguard-guard/src/config.rs
+  kind: system
+  layer: L1
+  r_eff: null
+  evidence:
+  - id: 20260705-gate-review-codex-fail-closed-coverage-matrix-close-the-fail-open-without-regressing-enforcement
+    type: gate:review
+    content: 'Independent adversarial review (Agent reviewer), 2 rounds. R1 = CONCERNS/HIGH: found a real blocker the author missed — install_codex used a coarse "secguard hook" idempotency marker that matched the existing guard hook, so an existing Codex user re-running `init codex` after upgrade got "already installed" and never received the new fail-closed secrets-scan hook (reviewer reproduced against the built binary). Fixed: install_codex now checks each hook type independently ("hook guard --target codex" / "hook secrets-scan --target codex") and pushes each missing hook; regression test init_codex_upgrade_adds_secrets_scan_to_existing_guard_only_install added. Also fixed matrix accuracy (transport_matrix + config display now use is_strict() honoring SECGUARD_STRICT, not the raw field) and added compute_pass() + 5 negative/positive unit tests proving --check fails on uncovered cell / detection miss / silent scanner. R2 = APPROVE/SEVERITY NONE: reviewer independently re-reproduced the upgrade fix, verified SECGUARD_STRICT=0 renders the Claude cell advisory, and ran cargo test --all = 406 passed + clippy -D warnings clean himself. Security-critical Codex deny branch (hook.rs run_secrets_scan) confirmed sound: deny path never emits the raw secret (only rule_id/type names), telemetry fires pre-branch with types only, fail-loud path passes updated_input:None. Out-of-scope, tracked separately: README.md:126-179 documents a [postuse]/`diana dev hook post-use` capability absent from this repo (pre-existing working-tree modification, not part of this change''s edits).'
+    verdict: pass
+    valid_until: 2026-10-03T20:45:47.812778+00:00
+    carrier_ref: null
+    formality: 4
+    claim_scope:
+    - crates/secguard-cli/src/{hook.rs
+    - cmd_init.rs
+    - main.rs
+    - cmd_selftest.rs}
+    - crates/secguard-cli/tests/cli.rs
+    - crates/secguard-guard/src/config.rs
+    congruence_level: null
+    reliability: 0.9
+    refine_kind: null
+    agent: reviewer
+  depends_on: []
+  rationale: null
+  spec_ref: null
+  prompt: Does the change close the Codex secrets fail-open without regressing existing enforcement, and does the coverage matrix honestly report and guard the enforcement surface?
+  next_move: build
+decision: null
+note_rationale: null
+expires_at: null
+auto_noted: false
