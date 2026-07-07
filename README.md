@@ -1,3 +1,6 @@
+> ⚠️ **Synced from Diana monolith — do not edit here.** Canonical sources live at https://github.com/random1st/diana under `rust/crates/diana-{guard,secrets,secguard-brain}/`. Published via `tools/release-secguard.sh` from the monolith. PRs against this repo for code changes will be redirected upstream.
+>
+> Active hardening: [RAN-411 secguard v2](https://linear.app/random1st/issue/RAN-411).
 # secguard
 
 3-level security guard for AI coding agents. Catches leaked credentials and blocks destructive shell commands before they execute.

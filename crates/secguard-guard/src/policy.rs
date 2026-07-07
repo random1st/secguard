@@ -264,7 +264,7 @@ mod tests {
     #[test]
     fn diana_is_policy_safe() {
         assert!(is_safe_by_policy("diana search RAN-296", &cfg()));
-        assert!(is_safe_by_policy("diana router", &cfg()));
+        assert!(is_safe_by_policy("diana version", &cfg()));
     }
 
     #[test]

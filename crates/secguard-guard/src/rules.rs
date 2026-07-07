@@ -11,6 +11,7 @@
 
 use crate::ast::{EffectiveCommand, SpanKind};
 use crate::config::GuardConfig;
+use crate::matcher::{self, ListRule};
 use crate::rule_id::RuleId;
 
 pub type RuleHit = (RuleId, String);
@@ -31,6 +32,27 @@ pub fn classify(cmd: &EffectiveCommand, config: &GuardConfig) -> Option<RuleHit>
     None
 }
 
+/// Configured path denies must run before configured command allows in
+/// `check_detailed`, so expose just that narrow predicate separately from the
+/// default heuristic dispatcher.
+pub(crate) fn classify_configured_path_deny(
+    cmd: &EffectiveCommand,
+    config: &GuardConfig,
+) -> Option<RuleHit> {
+    if cmd.span != SpanKind::Executed {
+        return None;
+    }
+    let head = cmd.head()?;
+    if !matches!(head, "rm" | "unlink" | "rmdir") {
+        return None;
+    }
+
+    let parsed = parse_rm_args(head, cmd.args());
+    let effective_operands = effectivise_operands(&parsed.operands, cmd.cwd.as_deref());
+    let lists = crate::config::build_rule_lists(config);
+    configured_path_deny(head, &parsed, &effective_operands, &lists.deny.paths)
+}
+
 type Rule = fn(&EffectiveCommand, &GuardConfig) -> Option<RuleHit>;
 
 const RULES: &[Rule] = &[
@@ -44,6 +66,7 @@ const RULES: &[Rule] = &[
     rule_git_reset,
     rule_bfg,
     rule_rm_family,
+    rule_chmod_world_writable,
     rule_sql_destructive,
     rule_unsafe_kill,
     rule_docker,
@@ -68,6 +91,73 @@ const RULES: &[Rule] = &[
     rule_gh_destructive,
     rule_saas_destroy,
 ];
+
+// ── chmod ────────────────────────────────────────────────────────────
+
+/// Flags `chmod` that grants world-write in a way that is almost always a
+/// mistake: recursively (`chmod -R 777`, `-R a+rwx`, `-R o+w`) or a
+/// world-writable mode on a catastrophic path (`chmod 777 /`). Ordinary
+/// `chmod +x`, `644`, `755`, `u+x`, or `777` on a single local file pass.
+fn rule_chmod_world_writable(c: &EffectiveCommand, _: &GuardConfig) -> Option<RuleHit> {
+    if c.head()? != "chmod" {
+        return None;
+    }
+    let args = c.args();
+
+    let recursive = args.iter().any(|a| {
+        a == "--recursive"
+            || (a.starts_with('-') && !a.starts_with("--") && (a.contains('R') || a.contains('r')))
+    });
+
+    let non_flags: Vec<&str> = args
+        .iter()
+        .filter(|a| !a.starts_with('-'))
+        .map(String::as_str)
+        .collect();
+    // The mode is the first non-flag token; the rest are path operands.
+    let mode = non_flags.first().copied()?;
+    if !mode_is_world_writable(mode) {
+        return None;
+    }
+
+    if recursive {
+        return Some((
+            RuleId::ChmodWorldWritable,
+            format!("chmod recursive world-writable ({mode})"),
+        ));
+    }
+
+    for &op in non_flags.iter().skip(1) {
+        if is_catastrophic_path(op) {
+            return Some((
+                RuleId::ChmodWorldWritable,
+                format!("chmod world-writable on catastrophic path: {op}"),
+            ));
+        }
+    }
+
+    None
+}
+
+/// A mode string grants write to "others" (world-writable). Handles octal
+/// (`777`, `0666`, `2777`) via bit 2 of the last digit, plus common symbolic
+/// forms (`o+w`, `a+w`, `a+rwx`, `+rwx`, `o=rwx`).
+fn mode_is_world_writable(mode: &str) -> bool {
+    let is_octal = !mode.is_empty()
+        && (3..=4).contains(&mode.len())
+        && mode.bytes().all(|b| b.is_ascii_digit());
+    if is_octal {
+        if let Some(last) = mode.chars().last().and_then(|c| c.to_digit(8)) {
+            return last & 0o2 != 0;
+        }
+        return false;
+    }
+    mode.contains("o+w")
+        || mode.contains("a+w")
+        || mode.contains("a+rwx")
+        || mode.contains("+rwx")
+        || mode.contains("o=rwx")
+}
 
 // ── git ──────────────────────────────────────────────────────────────
 
@@ -344,6 +434,11 @@ fn rule_rm_family(c: &EffectiveCommand, config: &GuardConfig) -> Option<RuleHit>
         }
     }
 
+    let lists = crate::config::build_rule_lists(config);
+    if let Some(hit) = configured_path_deny(head, &parsed, &effective_operands, &lists.deny.paths) {
+        return Some(hit);
+    }
+
     if head == "rm" && !parsed.recursive {
         return None;
     }
@@ -353,7 +448,8 @@ fn rule_rm_family(c: &EffectiveCommand, config: &GuardConfig) -> Option<RuleHit>
     let all_safe = !effective_operands.is_empty()
         && effective_operands.iter().all(|op| {
             if local_paths_apply {
-                is_safe_operand(op, &config.safe_rm_patterns)
+                path_allowed_by_config(op, &lists.allow.paths)
+                    || is_safe_operand(op, &config.safe_rm_patterns)
             } else {
                 false
             }
@@ -381,6 +477,39 @@ fn rule_rm_family(c: &EffectiveCommand, config: &GuardConfig) -> Option<RuleHit>
         rule,
         format!("{label} {suffix}: {}", join_operands(&parsed.operands)),
     ))
+}
+
+fn configured_path_deny(
+    head: &str,
+    parsed: &RmArgs,
+    operands: &[String],
+    deny_paths: &[ListRule],
+) -> Option<RuleHit> {
+    for op in operands {
+        if let matcher::Decision::Deny { rule_id, reason } = matcher::evaluate(op, deny_paths, &[])
+        {
+            let detail = reason
+                .map(|r| format!("config deny path rule {rule_id} on {op}: {r}"))
+                .unwrap_or_else(|| format!("config deny path rule {rule_id} on {op}"));
+            return Some((rm_rule_id(head, parsed), detail));
+        }
+    }
+    None
+}
+
+fn path_allowed_by_config(operand: &str, allow_paths: &[ListRule]) -> bool {
+    matches!(
+        matcher::evaluate(operand, &[], allow_paths),
+        matcher::Decision::Allow { .. }
+    )
+}
+
+fn rm_rule_id(head: &str, parsed: &RmArgs) -> RuleId {
+    if head == "rm" && parsed.recursive {
+        RuleId::RmRf
+    } else {
+        RuleId::RmRecursive
+    }
 }
 
 #[derive(Default, Debug)]
@@ -1370,6 +1499,32 @@ mod tests {
     }
     fn safe(cmd: &str) -> bool {
         classify_str(cmd).is_none()
+    }
+
+    #[test]
+    fn chmod_recursive_world_writable_blocks() {
+        assert!(destructive("chmod -R 777 /"));
+        assert!(destructive("chmod -R 777 mydir"));
+        assert!(destructive("chmod -R a+rwx build"));
+        assert!(destructive("sudo chmod -R 777 /etc"));
+        let (id, _) = classify_str("chmod -R 777 /").unwrap();
+        assert_eq!(id, RuleId::ChmodWorldWritable);
+    }
+
+    #[test]
+    fn chmod_world_writable_on_root_blocks() {
+        assert!(destructive("chmod 777 /"));
+    }
+
+    #[test]
+    fn chmod_ordinary_is_safe() {
+        assert!(safe("chmod +x script.sh"));
+        assert!(safe("chmod 644 file.txt"));
+        assert!(safe("chmod 755 bin/tool"));
+        assert!(safe("chmod u+x run.sh"));
+        // Non-recursive 777 on a single local file is sloppy but low-risk —
+        // not flagged, to keep false positives down.
+        assert!(safe("chmod 777 localfile"));
     }
 
     // Smoke tests across rule families. The full unit-test suite for
