@@ -1,7 +1,7 @@
 //! RAN-413 G0.2 — criterion benchmark: matcher lookup on 1000 rules.
 
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
-use diana_guard::matcher::{evaluate, ListRule, ListRuleSpec};
+use secguard_guard::matcher::{evaluate, ListRule, ListRuleSpec};
 
 fn build_1000() -> Vec<ListRule> {
     let mut rules = Vec::with_capacity(1000);

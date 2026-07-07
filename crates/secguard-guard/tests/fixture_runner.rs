@@ -102,9 +102,9 @@ fn load_fixtures() -> Vec<(PathBuf, Fixture)> {
 /// fixtures use. We treat `Verdict::Destructive` as `ask` regardless of
 /// downstream target (Codex deny is a transport detail, not a decision).
 fn our_decision(cmd: &str) -> &'static str {
-    match diana_guard::check(cmd) {
-        diana_guard::Verdict::Safe => "allow",
-        diana_guard::Verdict::Destructive(_) => "ask",
+    match secguard_guard::check(cmd) {
+        secguard_guard::Verdict::Safe => "allow",
+        secguard_guard::Verdict::Destructive(_) => "ask",
     }
 }
 

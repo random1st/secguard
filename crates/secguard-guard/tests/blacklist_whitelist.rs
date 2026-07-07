@@ -1,8 +1,8 @@
 //! RAN-413 G0.2 — integration tests: TOML on disk → load → evaluate.
 
-use diana_guard::config::{build_lists, load, load_for_dir};
-use diana_guard::matcher::{evaluate, Decision};
-use diana_guard::{check_with_config, GuardConfig, Verdict};
+use secguard_guard::config::{build_lists, load, load_for_dir};
+use secguard_guard::matcher::{evaluate, Decision};
+use secguard_guard::{check_with_config, GuardConfig, Verdict};
 use std::io::Write;
 
 static ENV_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
@@ -186,7 +186,7 @@ pattern = "drop B"
 
 #[test]
 fn watched_config_cache_reflects_file_change() {
-    use diana_guard::config::ConfigCache;
+    use secguard_guard::config::ConfigCache;
     use std::{fs, thread, time};
 
     let dir = tempfile::tempdir().unwrap();

@@ -4,7 +4,7 @@
 //! `action`, proving the scoring matrix reaches real commands — and that the
 //! spread is real (not everything blocks).
 
-use diana_guard::{check_detailed, Action, GuardConfig};
+use secguard_guard::{check_detailed, Action, GuardConfig};
 
 fn action(cmd: &str) -> Action {
     check_detailed(cmd, &GuardConfig::default()).action
@@ -56,7 +56,7 @@ fn safe_command_allows() {
 fn config_override_changes_action() {
     // A user can downgrade a cell. Move (3, 0) [SaasDestroy/RmRf class] from
     // Block to Warn and confirm the pipeline honours it.
-    use diana_guard::config::{ScoringConfig, ScoringOverride};
+    use secguard_guard::config::{ScoringConfig, ScoringOverride};
     let cfg = GuardConfig {
         scoring: ScoringConfig {
             overrides: vec![ScoringOverride {
