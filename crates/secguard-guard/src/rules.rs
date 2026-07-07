@@ -115,10 +115,7 @@ fn rule_chmod_world_writable(c: &EffectiveCommand, _: &GuardConfig) -> Option<Ru
         .map(String::as_str)
         .collect();
     // The mode is the first non-flag token; the rest are path operands.
-    let mode = match non_flags.first().copied() {
-        Some(m) => m,
-        None => return None,
-    };
+    let mode = non_flags.first().copied()?;
     if !mode_is_world_writable(mode) {
         return None;
     }
