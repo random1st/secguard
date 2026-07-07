@@ -15,7 +15,7 @@
 
 #![cfg(feature = "ml")]
 
-use secguard_guard::{check_detailed, GuardConfig, Verdict, VerdictSource};
+use diana_guard::{check_detailed, GuardConfig, Verdict, VerdictSource};
 
 fn model_present() -> bool {
     dirs::home_dir()
