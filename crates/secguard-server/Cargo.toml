@@ -1,0 +1,29 @@
+[package]
+name = "secguard-server"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "HTTP server for secguard — Claude Code / Codex / Gemini hook endpoint"
+
+[[bin]]
+name = "secguard-server"
+path = "src/main.rs"
+
+[features]
+default = []
+ml = ["secguard-secrets/ml", "secguard-guard/ml"]
+
+[dependencies]
+secguard-guard = { path = "../secguard-guard" }
+secguard-secrets = { path = "../secguard-secrets" }
+axum = { workspace = true }
+tokio = { workspace = true }
+tower-http = { workspace = true }
+prometheus-client = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+anyhow = { workspace = true }
+log = { workspace = true }
+env_logger = { workspace = true }
+clap = { workspace = true }
