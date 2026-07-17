@@ -1,7 +1,7 @@
 [package]
 name = "secguard-secrets"
 description = "Secret and credential detection. Renamed from secguard-secrets on 2026-05-20 to align with the canonical Mid Layer name in ~/.diana/src/CLAUDE.md."
-version = "0.5.4"
+version = "0.5.5"
 edition.workspace = true
 license = "Apache-2.0 WITH Commons-Clause-1.0"
 
