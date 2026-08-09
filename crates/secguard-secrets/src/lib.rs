@@ -7,6 +7,7 @@ pub mod redactor;
 pub mod repo;
 pub mod rules;
 pub mod scanner;
+pub mod verifier;
 
 pub use baseline::{Baseline, BaselineEntry, BaselineError};
 pub use redactor::{redact, redact_value};
