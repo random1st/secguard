@@ -46,11 +46,14 @@ pub enum RuleId {
     GraphqlMutation,
     ChmodWorldWritable,
     Brain,
+    /// Network egress blocked by lockdown mode.
+    LockdownEgress,
 }
 
 impl RuleId {
     pub const fn as_code(self) -> &'static str {
         match self {
+            RuleId::LockdownEgress => "lockdown.egress",
             RuleId::GitForcePush => "git.force_push",
             RuleId::GitResetHard => "git.reset_hard",
             RuleId::GitResetMerge => "git.reset_merge",
@@ -103,6 +106,8 @@ impl RuleId {
         use crate::scoring::Decision as D;
         match self {
             // Git — mostly local repo state; reflog/up-down make many recoverable.
+            // Blocks data exfiltration; the target is remote, so recovery is not local.
+            RuleId::LockdownEgress => D::new(3, 0),
             RuleId::GitForcePush => D::new(3, 2),
             // `git reset --hard` discards uncommitted working-tree changes,
             // which the reflog does NOT recover (it tracks commits, not the

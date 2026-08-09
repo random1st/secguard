@@ -8,6 +8,9 @@ license = "Apache-2.0 WITH Commons-Clause-1.0"
 [features]
 default = []
 ml = ["secguard-brain"]
+# The injection detector has an ML path it gates behind this; the
+# deterministic rules run without it.
+prompt-injection-ml = ["ml"]
 
 [dependencies]
 # toml not in Diana workspace deps; pin per-crate. Workspace addition is a
@@ -33,6 +36,11 @@ tree-sitter-bash = "0.23"
 secguard-brain = { path = "../secguard-brain", optional = true }
 globset = "0.4"
 regex = "1"
+# autostash records stash timestamps; findings serialise a verdict envelope.
+chrono = { version = "0.4", features = ["clock", "serde"] }
+# deobfuscate decodes base64 payloads; findings fingerprint them.
+base64 = "0.22"
+sha2 = "0.10"
 thiserror = "2"
 notify = "7"
 

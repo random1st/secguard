@@ -84,6 +84,16 @@ pub struct GuardConfig {
     /// PostToolUse output-redaction settings (RAN-417 G1.2).
     #[serde(default)]
     pub postuse: PostuseConfig,
+    /// Auto-stash before high-blast operations. Ported from the June 2026
+    /// detector series (archive/secguard-detectors-20260607).
+    #[serde(default)]
+    pub autostash: AutostashConfig,
+    /// Network-egress lockdown. Off by default.
+    #[serde(default)]
+    pub lockdown: LockdownConfig,
+    /// Indirect prompt-injection detection.
+    #[serde(default)]
+    pub injection: InjectionConfig,
 }
 
 /// Per-cell overrides for the blast × reversibility action matrix.
@@ -190,6 +200,9 @@ impl Default for GuardConfig {
             whitelist: vec![],
             scoring: ScoringConfig::default(),
             postuse: PostuseConfig::default(),
+            autostash: AutostashConfig::default(),
+            lockdown: LockdownConfig::default(),
+            injection: InjectionConfig::default(),
         }
     }
 }
@@ -847,5 +860,96 @@ pattern = "(unclosed"
         assert!(is_safe_by_policy("rclone copy src dst", &cfg));
         // rm -rf / must still fire
         assert!(!is_safe_by_policy("rm -rf /", &cfg));
+    }
+}
+
+/// Auto-stash configuration (RAN-418 G1.3).
+///
+/// When `enabled`, the guard will run `git stash push -u -m "secguard-autosnap-<ts>"`
+/// before allowing any command whose blast score >= `blast_threshold` when inside a
+/// git repo with a dirty working tree and the command modifies the tree.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AutostashConfig {
+    /// When false, no auto-stashing is attempted. Default: true.
+    #[serde(default = "default_autostash_enabled")]
+    pub enabled: bool,
+    /// Minimum blast score (inclusive) that triggers an auto-stash. Default: 3.
+    #[serde(default = "default_autostash_blast_threshold")]
+    pub blast_threshold: u8,
+}
+
+fn default_autostash_enabled() -> bool {
+    true
+}
+
+fn default_autostash_blast_threshold() -> u8 {
+    3
+}
+
+impl Default for AutostashConfig {
+    fn default() -> Self {
+        Self {
+            enabled: default_autostash_enabled(),
+            blast_threshold: default_autostash_blast_threshold(),
+        }
+    }
+}
+
+/// Deterministic network-egress lockdown configuration (RAN-477).
+///
+/// When `enabled`, the guard blocks any Bash command whose head is a
+/// network-egress tool (`curl`, `wget`, `nc`/`ncat`, `ssh`, `scp`, remote
+/// `rsync`, `gh api`) and denies the `WebFetch` / `WebSearch` tool calls at
+/// the PreToolUse hook level.  Default: OFF (backwards-compatible).
+///
+/// Enable with `[lockdown]\nenabled = true` in
+/// `~/.config/secguard/config.toml`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LockdownConfig {
+    /// When true, network-egress commands and tools are blocked.
+    /// Default: false.
+    #[serde(default = "default_lockdown_enabled")]
+    pub enabled: bool,
+}
+
+fn default_lockdown_enabled() -> bool {
+    false
+}
+
+impl Default for LockdownConfig {
+    fn default() -> Self {
+        Self {
+            enabled: default_lockdown_enabled(),
+        }
+    }
+}
+
+/// Indirect prompt-injection detector configuration (RAN-422 G3.1).
+///
+/// Layer-1 (default-ON, regex/pattern) detects known injection markers in tool
+/// output (WebFetch, Read, Bash cat/curl) and wraps the offending content in
+/// `<external-content-untrusted>` tags. Layer-2 (ML, default-OFF) requires the
+/// `prompt-injection-ml` cargo feature and a model file on disk.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct InjectionConfig {
+    /// Enable Layer-1 regex detection. Default: true.
+    #[serde(default = "default_injection_enabled")]
+    pub enabled: bool,
+    /// Enable Layer-2 ML classifier (requires `prompt-injection-ml` feature).
+    /// Default: false.
+    #[serde(default)]
+    pub ml_enabled: bool,
+}
+
+fn default_injection_enabled() -> bool {
+    true
+}
+
+impl Default for InjectionConfig {
+    fn default() -> Self {
+        Self {
+            enabled: default_injection_enabled(),
+            ml_enabled: false,
+        }
     }
 }

@@ -3,8 +3,13 @@
 //! Three-phase classification: policy allowlist -> heuristic rules -> ML brain.
 
 pub mod ast;
+pub mod autostash;
 pub mod config;
+pub mod deobfuscate;
+pub mod findings;
 pub mod heuristic;
+pub mod injection;
+pub mod lockdown;
 pub mod matcher;
 pub mod policy;
 pub mod rm;
@@ -115,6 +120,31 @@ pub fn check_with_config(cmd: &str, config: &GuardConfig) -> Verdict {
 ///      `parse_error_after_trigger`; otherwise allow.
 ///   5. ML brain (if enabled) on commands not flagged by rules.
 pub fn check_detailed(cmd: &str, config: &GuardConfig) -> VerdictDetail {
+    // Phase 0: lockdown egress. Runs before the policy allowlist on purpose —
+    // a user-defined safe_command_prefixes entry must not be able to open a
+    // hole in a mode whose whole point is that nothing leaves.
+    if config.lockdown.enabled {
+        for ec in &ast::parse(cmd).commands {
+            if ec.span != ast::SpanKind::Executed {
+                continue;
+            }
+            if let Some((rule_id, reason)) = lockdown::is_lockdown_egress_command(ec) {
+                let full_reason = format!(
+                    "{reason}\n{deny_msg}",
+                    deny_msg = lockdown::LOCKDOWN_DENY_MSG
+                );
+                log::warn!("[lockdown] {full_reason}");
+                return VerdictDetail::new(
+                    Verdict::Destructive(full_reason),
+                    VerdictSource::Heuristic,
+                    None,
+                    Some(rule_id),
+                    config,
+                );
+            }
+        }
+    }
+
     let lists = config::build_rule_lists(config);
     match matcher::evaluate(cmd, &lists.deny.commands, &[]) {
         matcher::Decision::Deny { rule_id, reason } => {
@@ -287,4 +317,12 @@ fn has_trigger_keyword(cmd: &str) -> bool {
         "sudo",
     ];
     TRIGGERS.iter().any(|t| cmd.contains(t))
+}
+
+/// Test-visible alias for [`check_detailed`], used by the `lockdown` module's
+/// tests. Keeps the name short there without a `pub use` re-export in the
+/// crate root.
+#[cfg(test)]
+pub fn lib_check_detailed_with_lockdown(cmd: &str, config: &GuardConfig) -> VerdictDetail {
+    check_detailed(cmd, config)
 }

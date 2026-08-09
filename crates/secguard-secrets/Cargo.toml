@@ -8,6 +8,9 @@ license = "Apache-2.0 WITH Commons-Clause-1.0"
 [features]
 default = []
 ml = ["secguard-brain"]
+# Off by default: the HTTP stack is a large dependency and a network call in a
+# hook is a deliberate choice, never an accident of building the crate.
+verification = ["reqwest"]
 
 [dependencies]
 regex = { workspace = true }
@@ -17,8 +20,18 @@ serde_json = { workspace = true }
 sha2 = { workspace = true }
 ignore = { workspace = true }
 thiserror = "2"
+base64 = "0.22"
+# Verification cache lives under the user cache dir.
+dirs = "6"
+# Verification results carry a checked-at timestamp.
+chrono = { version = "0.4", features = ["clock", "serde"] }
+# Live token verification talks to provider endpoints from a sync hook path,
+# so the blocking client, and only behind the feature that turns it on.
+reqwest = { version = "0.12", features = ["blocking", "json", "rustls-tls"], default-features = false, optional = true }
 secguard-brain = { path = "../secguard-brain", optional = true }
 
 [dev-dependencies]
 pretty_assertions = "1"
 tempfile = "3"
+tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
+wiremock = "0.6"
