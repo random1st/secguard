@@ -9,3 +9,8 @@ features:
   status: applied
   product: secguard
   version: 1.0.0
+- id: feat.enforcement-coverage-matrix
+  spec_path: packages/feat.enforcement-coverage-matrix__20260705.s5d.yaml
+  status: applied
+  product: secguard
+  version: 1.0.0

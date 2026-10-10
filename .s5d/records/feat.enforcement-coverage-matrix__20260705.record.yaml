@@ -1,0 +1,111 @@
+spec_ref: feat.enforcement-coverage-matrix__20260705.s5d.yaml
+spec_sha256: sha256:6a10ad3482ace5682a524a1d73fbc80f45c6010df556911fbff74b09f2075003
+status: applied
+sync_status: synced
+status_history:
+- status: proposed
+  timestamp: 2026-07-05T20:08:28.133493+00:00
+- status: previewed
+  timestamp: 2026-07-05T20:10:19.612405+00:00
+- status: approved
+  timestamp: 2026-07-05T20:10:36.951739+00:00
+- status: previewed
+  timestamp: 2026-07-05T20:46:42.812464+00:00
+- status: approved
+  timestamp: 2026-07-05T20:46:53.107208+00:00
+- status: applied
+  timestamp: 2026-07-05T20:47:04.293220+00:00
+active_phase: null
+phase_history: []
+phase_runs: []
+approvals:
+- reviewer: random1st
+  date: 2026-07-05T20:10:36.951737+00:00
+  spec_sha256: sha256:e3527f0515eefd611947257c953f978680b860fe1ca739066143e97a3dca26be
+  diff_sha256: sha256:888aa8a2738ed9f3076676a94c47151878c53fd7c0987b66278a750135b10c1a
+- reviewer: random1st
+  date: 2026-07-05T20:46:53.107203+00:00
+  spec_sha256: sha256:9fd5e2a3f83d1c809fcaee82698f7fa26c8f8ed91f8aa3d8b477d819d72e44ab
+  diff_sha256: sha256:888aa8a2738ed9f3076676a94c47151878c53fd7c0987b66278a750135b10c1a
+preview:
+  diff_sha256: sha256:888aa8a2738ed9f3076676a94c47151878c53fd7c0987b66278a750135b10c1a
+  previewed_spec_sha256: sha256:9fd5e2a3f83d1c809fcaee82698f7fa26c8f8ed91f8aa3d8b477d819d72e44ab
+  actions:
+    create: 6
+    link: 3
+    update: 1
+    delete: 0
+  log: null
+reflection: null
+gate_results:
+- kind: schema
+  status: passed
+  attempt: 1
+  timestamp: 2026-07-05T20:28:08.361773+00:00
+  log: schema validation passed (built-in)
+  exit_code: null
+  evidence_path: evidence/feat.enforcement-coverage-matrix/schema_1.log
+  command: null
+  duration_ms: 0
+  waiver_expires_at: null
+  kind_class: null
+- kind: graph
+  status: passed
+  attempt: 1
+  timestamp: 2026-07-05T20:28:08.361940+00:00
+  log: graph check passed (built-in)
+  exit_code: null
+  evidence_path: evidence/feat.enforcement-coverage-matrix/graph_1.log
+  command: null
+  duration_ms: 0
+  waiver_expires_at: null
+  kind_class: null
+- kind: review
+  status: failed
+  attempt: 1
+  timestamp: 2026-07-05T20:28:08.362062+00:00
+  log: 'review gate failed (built-in): no evidence with type=gate:review and verdict=pass found. Decision/high-tier specs require >=1 code review recorded as evidence. Use: s5d add-evidence <spec> --hypothesis-id <id> --evidence-type gate:review --content ''<reviewer findings>'' --verdict pass --formality <1-5> --claim-scope <scope> --reliability <0..1>'
+  exit_code: null
+  evidence_path: evidence/feat.enforcement-coverage-matrix/review_1.log
+  command: null
+  duration_ms: 0
+  waiver_expires_at: null
+  kind_class: null
+- kind: schema
+  status: passed
+  attempt: 1
+  timestamp: 2026-07-05T20:45:57.026825+00:00
+  log: schema validation passed (built-in)
+  exit_code: null
+  evidence_path: evidence/feat.enforcement-coverage-matrix/schema_1.log
+  command: null
+  duration_ms: 1
+  waiver_expires_at: null
+  kind_class: null
+- kind: graph
+  status: passed
+  attempt: 1
+  timestamp: 2026-07-05T20:45:57.026968+00:00
+  log: graph check passed (built-in)
+  exit_code: null
+  evidence_path: evidence/feat.enforcement-coverage-matrix/graph_1.log
+  command: null
+  duration_ms: 0
+  waiver_expires_at: null
+  kind_class: null
+- kind: review
+  status: passed
+  attempt: 1
+  timestamp: 2026-07-05T20:45:57.027099+00:00
+  log: |-
+    review gate passed (built-in): 1 review-evidence with verdict=pass
+      - hypothesis=codex-fail-closed-coverage-matrix-close-the-fail-open-without-regressing-enforcement evidence_id=20260705-gate-review-codex-fail-closed-coverage-matrix-close-the-fail-open-without-regressing-enforcement formality=4
+  exit_code: null
+  evidence_path: evidence/feat.enforcement-coverage-matrix/review_1.log
+  command: null
+  duration_ms: 0
+  waiver_expires_at: null
+  kind_class: null
+decision: null
+verified_by: reviewer-agent + random1st (cargo test --all=406, clippy -D warnings clean, adversarial review APPROVE)
+drift_tolerance: null

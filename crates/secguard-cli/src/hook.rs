@@ -74,14 +74,40 @@ fn run_secrets_scan(v: &serde_json::Value, target: HookTarget) -> anyhow::Result
     if !findings.is_empty() {
         let types: Vec<&str> = findings.iter().map(|f| f.rule_id.as_str()).collect();
         let unique_types: std::collections::BTreeSet<&str> = types.into_iter().collect();
+        let types_list = unique_types.into_iter().collect::<Vec<_>>().join(", ");
         let context = format!(
             "[secguard] Redacted {} credential(s). Types: {}",
             findings.len(),
-            unique_types.into_iter().collect::<Vec<_>>().join(", ")
+            types_list
         );
         eprintln!("{context}");
 
         let hook_event_name = incoming_hook_event_name(v);
+
+        // Codex PreToolUse cannot honour `updatedInput`, so redaction is
+        // impossible on that surface. Emitting an allow with a redacted
+        // `updatedInput` Codex will ignore would leak the original secret to the
+        // tool while the hook reports "protected" — a silent fail-open. Default
+        // (`codex_secrets_block = true`): fail closed, deny the call. Opt-out:
+        // fail loud — allow but surface a warning via `additionalContext`.
+        if matches!(target, HookTarget::Codex) {
+            let config = secguard_guard::config::load();
+            let reason = format!(
+                "\u{26a0}\u{fe0f} secguard: {} credential(s) detected in tool input ({}). \
+                 Codex cannot redact input (PreToolUse has no rewrite), so the call is blocked \
+                 to avoid leaking the secret. Set codex_secrets_block=false to warn instead.",
+                findings.len(),
+                types_list
+            );
+            let json = if config.codex_secrets_block {
+                deny_response(target, hook_event_name, reason)
+            } else {
+                allow_response(target, hook_event_name, None, Some(reason))
+            };
+            println!("{}", serde_json::to_string(&json)?);
+            return Ok(());
+        }
+
         let json = allow_response(target, hook_event_name, Some(input_clone), Some(context));
         println!("{}", serde_json::to_string(&json)?);
     } else if matches!(target, HookTarget::Codex) {

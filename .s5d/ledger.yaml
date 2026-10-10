@@ -14,3 +14,10 @@ entries:
   status: success
   timestamp: 2026-05-07T20:27:33.967082+00:00
   record_ref: records/decision.guard-indirection-hardening__20260507.record.yaml
+- spec_sha256: sha256:9fd5e2a3f83d1c809fcaee82698f7fa26c8f8ed91f8aa3d8b477d819d72e44ab
+  state_fingerprint: sha256:f398f186a57c87e017f41926639d0bc46d1e1d46d7ea93e368cf006c1adc97d1
+  package_id: feat.enforcement-coverage-matrix
+  action: import
+  status: success
+  timestamp: 2026-07-05T20:47:04.282351+00:00
+  record_ref: records/feat.enforcement-coverage-matrix__20260705.record.yaml
