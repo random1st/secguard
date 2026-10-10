@@ -187,7 +187,7 @@ pub fn default_rules() -> Vec<SecretRule> {
         (
             "generic_secret_assignment",
             "Hardcoded Secret Value",
-            r#"(?i)(?:password|passwd|secret|token|api[_-]?key|apikey|auth[_-]?token|access[_-]?token|private[_-]?key)\s*[:=]\s*['"](?P<secret>[^'"]{8,})['"]"#,
+            r#"(?i)(?:password|passwd|secret|token|api[_-]?key|apikey|auth[_-]?token|access[_-]?token|private[_-]?key)['"]?\s*[:=]\s*['"](?P<secret>[^'"]{8,})['"]"#,
             &[
                 "password",
                 "passwd",
@@ -203,6 +203,12 @@ pub fn default_rules() -> Vec<SecretRule> {
                 "SECRET",
                 "TOKEN",
                 "API_KEY",
+                // The pre-filter is case-sensitive: camelCase JSON keys
+                // (accessToken, clientSecret, apiKey) carry capitalised words.
+                "Token",
+                "Secret",
+                "Password",
+                "Key",
             ],
         ),
         (
