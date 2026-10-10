@@ -375,6 +375,27 @@ mod tests {
         assert!(!findings.is_empty());
     }
 
+    /// JSON and Python-dict keys put a closing quote between the key name and
+    /// the colon (`"accessToken": "…"`); the generic rule must still match.
+    #[test]
+    fn scan_generic_secret_in_quoted_keys() {
+        let scanner = Scanner::new();
+        for text in [
+            r#"{"accessToken": "placeholder-value-0001"}"#,
+            r#"{'refreshToken': 'placeholder-value-0002'}"#,
+            r#"{"clientSecret":"placeholder-value-0003"}"#,
+            r#"API_TOKEN="placeholder-value-0004""#,
+        ] {
+            let findings = scanner.scan(text);
+            assert!(
+                findings
+                    .iter()
+                    .any(|f| f.rule_id == "generic_secret_assignment"),
+                "no generic_secret_assignment finding for {text}"
+            );
+        }
+    }
+
     #[test]
     fn preview_masks_secret() {
         let preview = Finding::preview("sk-ant-api03-verylongsecretkeyhere");
